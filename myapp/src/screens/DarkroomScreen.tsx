@@ -1,0 +1,129 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+interface DarkroomScreenProps {
+  onBack: () => void;
+}
+
+const INITIAL_SECONDS = 30;
+
+export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
+  const [remainingSeconds, setRemainingSeconds] = useState(INITIAL_SECONDS);
+  const hasShownSuccessAlert = useRef(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRemainingSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (remainingSeconds === 0 && !hasShownSuccessAlert.current) {
+      hasShownSuccessAlert.current = true;
+      Alert.alert('現像完了', '現像に成功しました！');
+    }
+  }, [remainingSeconds]);
+
+  const displayTime = useMemo(() => {
+    const hours = Math.floor(remainingSeconds / 3600);
+    const minutes = Math.floor((remainingSeconds % 3600) / 60);
+    const seconds = remainingSeconds % 60;
+
+    return [hours, minutes, seconds]
+      .map((value) => value.toString().padStart(2, '0'))
+      .join(':');
+  }, [remainingSeconds]);
+
+  const handleBackPress = () => {
+    Alert.alert(
+      '暗室を終了',
+      '現像が中断されますがよろしいですか？',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: '戻る', style: 'destructive', onPress: onBack },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.glowLarge} />
+      <View style={styles.glowSmall} />
+
+      <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+        <Text style={styles.backButtonText}>← 戻る</Text>
+      </TouchableOpacity>
+
+      <View style={styles.timerWrap}>
+        <Text style={styles.timerLabel}>DEVELOPING</Text>
+        <Text style={styles.timerText}>{displayTime}</Text>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#050505',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  glowLarge: {
+    position: 'absolute',
+    width: 560,
+    height: 560,
+    borderRadius: 280,
+    backgroundColor: 'rgba(139, 0, 0, 0.16)',
+    top: -140,
+    right: -180,
+  },
+  glowSmall: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(139, 0, 0, 0.12)',
+    bottom: -90,
+    left: -90,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 36,
+    left: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    backgroundColor: 'rgba(20, 0, 0, 0.55)',
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  timerWrap: {
+    alignItems: 'center',
+  },
+  timerLabel: {
+    color: '#8B0000',
+    fontSize: 13,
+    letterSpacing: 3,
+    marginBottom: 14,
+    fontWeight: '600',
+  },
+  timerText: {
+    color: '#FFFFFF',
+    fontSize: 64,
+    fontWeight: '900',
+    letterSpacing: 2,
+    fontFamily: 'monospace',
+    textShadowColor: 'rgba(255, 255, 255, 0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+});
