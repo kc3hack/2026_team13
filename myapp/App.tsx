@@ -3,8 +3,9 @@ import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
+import { AlbumScreen } from './src/screens/AlbumScreen';
 
-type Screen = 'Home' | 'Settings' | 'ImagePicker';
+type Screen = 'Home' | 'Settings' | 'ImagePicker' | 'Album';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('Home');
@@ -15,6 +16,7 @@ export default function App() {
                   <HomeScreen 
                       onOpenSettings={() => setCurrentScreen('Settings')}
                       onOpenImagePicker={() => setCurrentScreen('ImagePicker')}
+                      onOpenAlbum={() => setCurrentScreen('Album')}
                   />
               );
           case 'Settings':
@@ -29,6 +31,12 @@ export default function App() {
                   <ImagePickerScreen 
                       onBack={() => setCurrentScreen('Home')}
                   />
+              );
+            case 'Album':
+              return (
+                <AlbumScreen
+                  onBack={() => setCurrentScreen('Home')}
+                />
               );
           default:
               return null;
