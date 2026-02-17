@@ -6,9 +6,10 @@ interface HomeScreenProps {
   onOpenSettings: () => void;
   onOpenImagePicker: () => void;
   onOpenAlbum: () => void;
+  onOpenDarkroom: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenImagePicker, onOpenAlbum }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenImagePicker, onOpenAlbum, onOpenDarkroom }) => {
   const { coinBalance, loading, checkForCommits, lastEventId } = useGithubCommits();
   const { width } = useWindowDimensions();
   const menuWidth = Math.min(300, width * 0.76);
@@ -108,7 +109,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenIm
           <View style={styles.shutterInner} />
         </TouchableOpacity>
 
-        <View style={styles.bottomRightSpacer} />
+        <TouchableOpacity style={styles.darkroomButton} onPress={onOpenDarkroom}>
+          <Text style={styles.darkroomIcon}>🔴</Text>
+          <Text style={styles.darkroomLabel}>暗室へ移動</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.rightEdgeGesture} {...edgePanResponder.panHandlers} />
@@ -260,9 +264,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DDDDDD',
   },
-  bottomRightSpacer: {
-    width: 54,
-    height: 54,
+  darkroomButton: {
+    width: 92,
+    height: 62,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#6B0F0F',
+    backgroundColor: '#0D0D0D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  darkroomIcon: {
+    fontSize: 16,
+    marginBottom: 2,
+  },
+  darkroomLabel: {
+    fontSize: 11,
+    color: '#FF4A4A',
+    fontWeight: '700',
   },
   rightEdgeGesture: {
     position: 'absolute',

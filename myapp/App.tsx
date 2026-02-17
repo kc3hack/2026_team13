@@ -4,9 +4,10 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
 import { AlbumScreen } from './src/screens/AlbumScreen';
+import { DarkroomScreen } from './src/screens/DarkroomScreen';
 import { useBGM } from './src/hooks/useBGM';
 
-type Screen = 'Home' | 'Settings' | 'ImagePicker' | 'Album';
+type Screen = 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('Home');
@@ -29,6 +30,7 @@ export default function App() {
                       onOpenSettings={() => setCurrentScreen('Settings')}
                       onOpenImagePicker={() => setCurrentScreen('ImagePicker')}
                       onOpenAlbum={() => setCurrentScreen('Album')}
+                      onOpenDarkroom={() => setCurrentScreen('Darkroom')}
                   />
               );
           case 'Settings':
@@ -47,6 +49,12 @@ export default function App() {
             case 'Album':
               return (
                 <AlbumScreen
+                  onBack={() => setCurrentScreen('Home')}
+                />
+              );
+            case 'Darkroom':
+              return (
+                <DarkroomScreen
                   onBack={() => setCurrentScreen('Home')}
                 />
               );
