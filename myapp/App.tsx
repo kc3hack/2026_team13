@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Text,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -87,7 +88,7 @@ const CameraHomeScreen: React.FC = () => {
         {/* 左下: サムネイル（カメラロール） */}
         <TouchableOpacity style={styles.thumbnail} onPress={handleThumbnail}>
           {lastImage ? (
-            <Animated.Image source={{ uri: lastImage }} style={styles.thumbnailImage} />
+            <Image source={{ uri: lastImage }} style={styles.thumbnailImage} />
           ) : (
             <Ionicons name="images-outline" size={30} color="#fff" />
           )}
