@@ -7,6 +7,7 @@ const KEYS = {
   COIN_BALANCE: 'COIN_BALANCE',
   LAST_PROCESSED_EVENT_ID: 'LAST_PROCESSED_EVENT_ID',
   LAST_CHECK_TIMESTAMP: 'LAST_CHECK_TIMESTAMP',
+  BGM_VOLUME: 'BGM_VOLUME',
 };
 
 // --- User Settings ---
@@ -46,4 +47,16 @@ export const setLastCheckTimestamp = async (): Promise<void> => {
 export const getLastCheckTimestamp = async (): Promise<number | null> => {
   const val = await AsyncStorage.getItem(KEYS.LAST_CHECK_TIMESTAMP);
   return val ? parseInt(val, 10) : null;
+};
+
+// --- BGM Volume ---
+export const getBGMVolume = async (): Promise<number> => {
+  const val = await AsyncStorage.getItem(KEYS.BGM_VOLUME);
+  return val ? parseFloat(val) : 0.5; // Default 50%
+};
+
+export const setBGMVolume = async (volume: number): Promise<void> => {
+  // Clamp volume between 0 and 1
+  const clampedVolume = Math.max(0, Math.min(1, volume));
+  await AsyncStorage.setItem(KEYS.BGM_VOLUME, clampedVolume.toString());
 };

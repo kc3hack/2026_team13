@@ -12,6 +12,7 @@ import {
 import { getUserSettings, saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
+import { useBGM } from '../hooks/useBGM';
 
 interface SettingsScreenProps {
   onSave: () => void;
@@ -23,6 +24,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const { volume, updateVolume } = useBGM();
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -60,6 +62,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
     await saveUserSettings(settings);
     Alert.alert('Success', 'Settings saved!');
     onSave();
+  };
+
+  const handleVolumeIncrease = () => {
+    updateVolume(volume + 0.1);
+  };
+
+  const handleVolumeDecrease = () => {
+    updateVolume(volume - 0.1);
   };
 
   return (
@@ -105,6 +115,35 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         <Text style={styles.helperText}>
           Used to identify your commits accurately.
         </Text>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>BGM Volume</Text>
+        <View style={styles.volumeContainer}>
+          <TouchableOpacity 
+            style={styles.volumeButton}
+            onPress={handleVolumeDecrease}
+          >
+            <Text style={styles.volumeButtonText}>−</Text>
+          </TouchableOpacity>
+          <View style={styles.volumeDisplay}>
+            <View style={styles.volumeBar}>
+              <View 
+                style={[
+                  styles.volumeFill, 
+                  { width: `${volume * 100}%` }
+                ]} 
+              />
+            </View>
+            <Text style={styles.volumeText}>{Math.round(volume * 100)}%</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.volumeButton}
+            onPress={handleVolumeIncrease}
+          >
+            <Text style={styles.volumeButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.buttonGroup}>
@@ -160,6 +199,51 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     marginTop: 5,
+  },
+  volumeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+  },
+  volumeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  volumeButtonText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  volumeDisplay: {
+    flex: 1,
+    marginHorizontal: 12,
+    alignItems: 'center',
+  },
+  volumeBar: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  volumeFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+  },
+  volumeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
   },
   buttonGroup: {
     flexDirection: 'row',

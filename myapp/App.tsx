@@ -1,14 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
 import { AlbumScreen } from './src/screens/AlbumScreen';
+import { useBGM } from './src/hooks/useBGM';
 
 type Screen = 'Home' | 'Settings' | 'ImagePicker' | 'Album';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('Home');
+  const { startBGM, stopBGM } = useBGM();
+
+  // Control BGM based on current screen
+  useEffect(() => {
+    if (currentScreen === 'Home') {
+      startBGM();
+    } else {
+      stopBGM();
+    }
+  }, [currentScreen, startBGM, stopBGM]);
+
   const renderContent = () => {
       switch (currentScreen) {
           case 'Home':
