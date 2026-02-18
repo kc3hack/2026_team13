@@ -280,6 +280,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#777777',
   },
+  filmSelectorWrap: {
+    marginTop: 28,
+    paddingHorizontal: 20,
+  },
+  filmSelectorTitle: {
+    fontSize: 13,
+    color: '#3C3C3C',
+    marginBottom: 10,
+    fontWeight: '600',
+  },
+  filmSelectorRow: {
+    paddingRight: 20,
+    gap: 10,
+  },
+  filmChip: {
+    minWidth: 148,
+    borderWidth: 1,
+    borderColor: '#DADADA',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  filmChipSelected: {
+    borderColor: '#222222',
+    backgroundColor: '#F3F3F3',
+  },
+  filmChipTitle: {
+    color: '#222222',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  filmChipTitleSelected: {
+    color: '#111111',
+  },
+  filmChipDesc: {
+    color: '#666666',
+    fontSize: 12,
+  },
+  filmChipDescSelected: {
+    color: '#3E3E3E',
+  },
   bottomControls: {
     position: 'absolute',
     left: 20,

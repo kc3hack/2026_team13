@@ -1,20 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SetupScreen } from './src/screens/SetupScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
 import { AlbumScreen } from './src/screens/AlbumScreen';
 import { DarkroomScreen } from './src/screens/DarkroomScreen';
-import { LoginScreen } from './src/screens/LoginScreen';
 import { useBGM } from './src/hooks/useBGM';
 import { initDb } from './src/utils/sqlite';
-import { clearUserSettings, getUserSettings } from './src/utils/storage';
+import { getUserSettings, clearUserSettings } from './src/utils/storage';
 
-type Screen = 'Login' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
+type Screen = 'Loading' | 'Setup' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
+
+interface PendingDevelopPhoto {
+  id: number;
+  uri: string;
+  filmId: number;
+}
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('Login');
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
+  const [currentScreen, setCurrentScreen] = useState<Screen>('Loading');
   const { startBGM, stopBGM } = useBGM();
 
   // Control BGM based on current screen
@@ -26,40 +32,33 @@ export default function App() {
     }
   }, [currentScreen, startBGM, stopBGM]);
 
-  // initialize database on app start
-  useEffect(() => {
-    initDb().catch(err => console.log('DB init error', err));
-  }, []);
-
-  const handleLogout = async () => {
-    await clearUserSettings();
-    setCurrentScreen('Login');
-  };
-
-  // Decide initial route by saved login settings
+  // Initialize database & check first-launch on app start
   useEffect(() => {
     const bootstrap = async () => {
+      await initDb().catch((err: unknown) => console.log('DB init error', err));
       const settings = await getUserSettings();
       if (settings?.username && settings?.token) {
         setCurrentScreen('Home');
       } else {
-        setCurrentScreen('Login');
+        setCurrentScreen('Setup');
       }
-      setIsInitializing(false);
     };
-
-    bootstrap().catch(() => {
-      setCurrentScreen('Login');
-      setIsInitializing(false);
-    });
+    bootstrap();
   }, []);
+
+  const handleLogout = async () => {
+    await clearUserSettings();
+    setCurrentScreen('Setup');
+  };
 
   const renderContent = () => {
       switch (currentScreen) {
-          case 'Login':
+          case 'Loading':
+              return null;
+          case 'Setup':
               return (
-                  <LoginScreen
-                      onLoginSuccess={() => setCurrentScreen('Home')}
+                  <SetupScreen
+                      onComplete={() => setCurrentScreen('Home')}
                   />
               );
           case 'Home':
@@ -68,7 +67,10 @@ export default function App() {
                       onOpenSettings={() => setCurrentScreen('Settings')}
                       onOpenImagePicker={() => setCurrentScreen('ImagePicker')}
                       onOpenAlbum={() => setCurrentScreen('Album')}
-                      onOpenDarkroom={() => setCurrentScreen('Darkroom')}
+                      onOpenDarkroom={() => {
+                        setPendingDevelopPhoto(null);
+                        setCurrentScreen('Darkroom');
+                      }}
                   onLogout={handleLogout}
                   />
               );
@@ -83,6 +85,10 @@ export default function App() {
               return (
                   <ImagePickerScreen 
                       onBack={() => setCurrentScreen('Home')}
+                  onGoDarkroom={(photo) => {
+                  setPendingDevelopPhoto(photo);
+                  setCurrentScreen('Darkroom');
+                  }}
                   />
               );
             case 'Album':
@@ -95,6 +101,7 @@ export default function App() {
               return (
                 <DarkroomScreen
                   onBack={() => setCurrentScreen('Home')}
+                  photo={pendingDevelopPhoto}
                 />
               );
           default:
@@ -106,11 +113,7 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.content}>
-        {isInitializing ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color="#007AFF" />
-          </View>
-        ) : renderContent()}
+        {renderContent()}
       </View>
     </SafeAreaView>
   );
