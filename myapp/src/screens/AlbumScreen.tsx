@@ -1,11 +1,43 @@
-import React from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View, FlatList, Image, Alert } from 'react-native';
+import { fetchPhotos, deletePhoto, Photo } from '../utils/sqlite';
 
 interface AlbumScreenProps {
   onBack: () => void;
 }
 
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
+  const [photos, setPhotos] = useState<Photo[]>([]);
+
+  const load = async () => {
+    const list = await fetchPhotos();
+    setPhotos(list);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const renderItem = ({ item }: { item: Photo }) => (
+    <TouchableOpacity
+      onLongPress={async () => {
+        Alert.alert('削除', 'この写真を削除しますか？', [
+          { text: 'キャンセル', style: 'cancel' },
+          {
+            text: '削除',
+            style: 'destructive',
+            onPress: async () => {
+              await deletePhoto(item.id);
+              load();
+            },
+          },
+        ]);
+      }}
+    >
+      <Image source={{ uri: item.uri }} style={styles.photo} />
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -16,6 +48,13 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
 
       <View style={styles.content}>
         <Text style={styles.title}>現像済み写真</Text>
+        <FlatList
+          data={photos}
+          keyExtractor={p => p.id.toString()}
+          renderItem={renderItem}
+          numColumns={3}
+          contentContainerStyle={styles.list}
+        />
       </View>
     </SafeAreaView>
   );
@@ -48,5 +87,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1E1E1E',
     letterSpacing: 1,
+  },
+  list: {
+    marginTop: 20,
+  },
+  photo: {
+    width: 100,
+    height: 100,
+    margin: 5,
+    borderRadius: 8,
   },
 });
