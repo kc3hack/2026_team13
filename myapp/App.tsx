@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
 import { AlbumScreen } from './src/screens/AlbumScreen';
 import { DarkroomScreen } from './src/screens/DarkroomScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
 import { useBGM } from './src/hooks/useBGM';
 import { initDb } from './src/utils/sqlite';
+import { getUserSettings } from './src/utils/storage';
 
-type Screen = 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
+type Screen = 'Login' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('Home');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('Login');
+  const [isInitializing, setIsInitializing] = useState(true);
   const { startBGM, stopBGM } = useBGM();
 
   // Control BGM based on current screen
@@ -28,8 +31,32 @@ export default function App() {
     initDb().catch(err => console.log('DB init error', err));
   }, []);
 
+  // Decide initial route by saved login settings
+  useEffect(() => {
+    const bootstrap = async () => {
+      const settings = await getUserSettings();
+      if (settings?.username && settings?.token) {
+        setCurrentScreen('Home');
+      } else {
+        setCurrentScreen('Login');
+      }
+      setIsInitializing(false);
+    };
+
+    bootstrap().catch(() => {
+      setCurrentScreen('Login');
+      setIsInitializing(false);
+    });
+  }, []);
+
   const renderContent = () => {
       switch (currentScreen) {
+          case 'Login':
+              return (
+                  <LoginScreen
+                      onLoginSuccess={() => setCurrentScreen('Home')}
+                  />
+              );
           case 'Home':
               return (
                   <HomeScreen 
@@ -73,7 +100,11 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.content}>
-        {renderContent()}
+        {isInitializing ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#007AFF" />
+          </View>
+        ) : renderContent()}
       </View>
     </SafeAreaView>
   );
@@ -86,5 +117,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
