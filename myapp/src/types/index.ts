@@ -81,3 +81,23 @@ export interface GitHubRepoCommit {
   } | null;
   html_url: string;
 }
+
+// --- Film types ---
+
+/** The three available film types */
+export type FilmType = 'mono' | 'vivid' | 'retro';
+
+export const FILM_TYPES: FilmType[] = ['mono', 'vivid', 'retro'];
+
+export const FILM_META: Record<FilmType, { label: string; emoji: string; description: string }> = {
+  mono:  { label: 'Mono',  emoji: '🎞️', description: 'モノクロームの静かなトーン' },
+  vivid: { label: 'Vivid', emoji: '🌈', description: '鮮やかで力強い色彩' },
+  retro: { label: 'Retro', emoji: '📷', description: 'ノスタルジックな褪せた風合い' },
+};
+
+/** Inventory of each film type the user owns */
+export interface FilmInventory {
+  mono: number;
+  vivid: number;
+  retro: number;
+}
