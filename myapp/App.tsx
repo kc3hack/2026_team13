@@ -7,14 +7,21 @@ import { AlbumScreen } from './src/screens/AlbumScreen';
 import { DarkroomScreen } from './src/screens/DarkroomScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { useBGM } from './src/hooks/useBGM';
-import { initDb } from './src/utils/sqlite';
+import { initDatabase } from './src/utils/sqlite';
 import { clearUserSettings, getUserSettings } from './src/utils/storage';
 
 type Screen = 'Login' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
 
+interface PendingDevelopPhoto {
+  id: number;
+  uri: string;
+  filmId: number;
+}
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('Login');
   const [isInitializing, setIsInitializing] = useState(true);
+  const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
   const { startBGM, stopBGM } = useBGM();
 
   // Control BGM based on current screen
@@ -28,7 +35,7 @@ export default function App() {
 
   // initialize database on app start
   useEffect(() => {
-    initDb().catch(err => console.log('DB init error', err));
+    initDatabase().catch(err => console.log('DB init error', err));
   }, []);
 
   const handleLogout = async () => {
@@ -68,7 +75,10 @@ export default function App() {
                       onOpenSettings={() => setCurrentScreen('Settings')}
                       onOpenImagePicker={() => setCurrentScreen('ImagePicker')}
                       onOpenAlbum={() => setCurrentScreen('Album')}
-                      onOpenDarkroom={() => setCurrentScreen('Darkroom')}
+                      onOpenDarkroom={() => {
+                        setPendingDevelopPhoto(null);
+                        setCurrentScreen('Darkroom');
+                      }}
                   onLogout={handleLogout}
                   />
               );
@@ -83,6 +93,10 @@ export default function App() {
               return (
                   <ImagePickerScreen 
                       onBack={() => setCurrentScreen('Home')}
+                  onGoDarkroom={(photo) => {
+                  setPendingDevelopPhoto(photo);
+                  setCurrentScreen('Darkroom');
+                  }}
                   />
               );
             case 'Album':
@@ -95,6 +109,7 @@ export default function App() {
               return (
                 <DarkroomScreen
                   onBack={() => setCurrentScreen('Home')}
+                  photo={pendingDevelopPhoto}
                 />
               );
           default:

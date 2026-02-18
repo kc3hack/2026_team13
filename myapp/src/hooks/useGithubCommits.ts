@@ -6,13 +6,13 @@ import {
   getUserSettings,
   setLastCheckTimestamp,
 } from '../utils/storage';
-import { FilmInventory, FilmType, FILM_META, FILM_TYPES, UserSettings, GitHubRepoCommit } from '../types';
+import { FilmInventory, RewardFilmType, FILM_META, FILM_TYPES, UserSettings, GitHubRepoCommit } from '../types';
 
 export interface CheckResult {
   success: boolean;
   message: string;
   newCommits: number;
-  filmsAwarded: { type: FilmType; label: string; emoji: string }[];
+  filmsAwarded: { type: RewardFilmType; label: string; emoji: string }[];
 }
 
 /**
@@ -46,7 +46,7 @@ const isMyCommit = (
 };
 
 /** Pick a random film type */
-const pickRandomFilm = (): FilmType => {
+const pickRandomFilm = (): RewardFilmType => {
   return FILM_TYPES[Math.floor(Math.random() * FILM_TYPES.length)];
 };
 
@@ -178,7 +178,7 @@ export const useGithubCommits = () => {
       console.log(`[CommitCheck] 検出コミット数: ${newCommitsCount}`);
 
       // 4. Award random films (one per commit)
-      const filmsAwarded: { type: FilmType; label: string; emoji: string }[] = [];
+      const filmsAwarded: { type: RewardFilmType; label: string; emoji: string }[] = [];
       if (newCommitsCount > 0) {
         for (let i = 0; i < newCommitsCount; i++) {
           const filmType = pickRandomFilm();
