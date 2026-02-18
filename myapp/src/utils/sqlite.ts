@@ -18,9 +18,6 @@ const ensureFilmsSeeded = async (): Promise<void> => {
 
   await db.runAsync(
     `INSERT OR IGNORE INTO films (id, name, description, effect_type) VALUES
-      (1, 'Standard', 'ナチュラルな色味の標準フィルム', 'standard'),
-      (2, 'Monochrome', '落ち着いたモノクロ表現', 'monochrome'),
-      (3, 'Vintage', 'やわらかい退色感を持つレトロ表現', 'vintage'),
       (11, 'Mono', 'モノクロームの静かなトーン', 'mono'),
       (12, 'Vivid', '鮮やかで力強い色彩', 'vivid'),
       (13, 'Retro', 'ノスタルジックな褪せた風合い', 'retro');`
