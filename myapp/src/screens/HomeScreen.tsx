@@ -97,8 +97,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   ).current;
 
   const handleLogout = () => {
-    closeMenu();
-    onLogout();
+    Alert.alert(
+      'ログアウト確認',
+      '本当にログアウトしますか？',
+      [
+        {
+          text: 'キャンセル',
+          style: 'cancel',
+        },
+        {
+          text: 'ログアウト',
+          style: 'destructive',
+          onPress: () => {
+            closeMenu();
+            onLogout();
+          },
+        },
+      ],
+      { cancelable: true },
+    );
   };
 
   return (
@@ -385,12 +402,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   settingsAction: {
-    alignSelf: 'flex-start',
+    width: '100%',
+    minHeight: 44,
     borderWidth: 1,
     borderColor: '#DADADA',
     paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   settingsActionText: {
     fontSize: 14,
@@ -399,11 +418,14 @@ const styles = StyleSheet.create({
   },
   logoutAction: {
     marginTop: 10,
+    width: '100%',
+    minHeight: 44,
     borderWidth: 1,
     borderColor: '#E2B5B5',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#FFF7F7',
   },
   logoutActionText: {
