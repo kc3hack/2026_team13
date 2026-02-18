@@ -14,16 +14,20 @@ import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
 import { useBGM } from '../hooks/useBGM';
 
+type SettingsSection = 'profile' | 'sounds';
+
 interface SettingsScreenProps {
   onSave: () => void;
   onCancel: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel }) => {
+  const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
   const [username, setUsername] = useState('');
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialVolume, setInitialVolume] = useState(0);
   const { volume, updateVolume } = useBGM();
 
   useEffect(() => {
@@ -34,6 +38,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         setToken(settings.token);
         setGitEmail(settings.gitEmail || '');
       }
+      // 初期音量を記録
+      setInitialVolume(volume);
     };
     loadSettings();
   }, []);
@@ -65,16 +71,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
   };
 
   const handleVolumeIncrease = () => {
-    updateVolume(volume + 0.1);
+    updateVolume(Math.min(1, volume + 0.1));
   };
 
   const handleVolumeDecrease = () => {
-    updateVolume(volume - 0.1);
+    updateVolume(Math.max(0, volume - 0.1));
   };
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Settings</Text>
+  const handleResetVolume = () => {
+    updateVolume(initialVolume);
+    Alert.alert('Reset', 'Volume reset to default setting');
+  };
+
+  const handleSaveVolume = () => {
+    Alert.alert('Success', `Volume saved at ${Math.round(volume * 100)}%`);
+  };
+
+  const renderProfileSection = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.sectionTitle}>Profile</Text>
 
       <View style={styles.inputGroup}>
         <Text style={styles.label}>GitHub Username</Text>
@@ -116,6 +131,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
           Used to identify your commits accurately.
         </Text>
       </View>
+    </ScrollView>
+  );
+
+  const renderSoundsSection = () => (
+    <ScrollView contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.sectionTitle}>Sounds</Text>
 
       <View style={styles.inputGroup}>
         <Text style={styles.label}>BGM Volume</Text>
@@ -146,31 +167,164 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         </View>
       </View>
 
-      <View style={styles.buttonGroup}>
+      <View style={styles.soundsButtonGroup}>
         <TouchableOpacity
-          style={[styles.button, styles.cancelButton]}
-          onPress={onCancel}
+          style={[styles.soundsButton, styles.resetButton]}
+          onPress={handleResetVolume}
         >
-          <Text style={styles.buttonText}>Cancel</Text>
+          <Text style={[styles.soundsButtonText, styles.resetButtonText]}>Reset</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
-          style={[styles.button, styles.saveButton, loading && styles.disabledButton]}
-          onPress={handleSave}
-          disabled={loading}
+          style={[styles.soundsButton, styles.saveSoundButton]}
+          onPress={handleSaveVolume}
         >
-          <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'Save'}</Text>
+          <Text style={[styles.soundsButtonText, styles.saveSoundButtonText]}>Save</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* Left Sidebar - Section Navigation */}
+      <View style={styles.sidebar}>
+        <TouchableOpacity 
+          style={styles.backButtonContainer}
+          onPress={onCancel}
+        >
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.sidebarTitle}>Settings</Text>
+        <View style={styles.sectionList}>
+          <TouchableOpacity 
+            style={[
+              styles.sectionButton,
+              activeSection === 'profile' && styles.sectionButtonActive
+            ]}
+            onPress={() => setActiveSection('profile')}
+          >
+            <Text style={[
+              styles.sectionButtonText,
+              activeSection === 'profile' && styles.sectionButtonTextActive
+            ]}>
+              Profile
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[
+              styles.sectionButton,
+              activeSection === 'sounds' && styles.sectionButtonActive
+            ]}
+            onPress={() => setActiveSection('sounds')}
+          >
+            <Text style={[
+              styles.sectionButtonText,
+              activeSection === 'sounds' && styles.sectionButtonTextActive
+            ]}>
+              Sounds
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Right Content Area */}
+      <View style={styles.contentArea}>
+        {activeSection === 'profile' && renderProfileSection()}
+        {activeSection === 'sounds' && renderSoundsSection()}
+
+        {/* Footer Buttons */}
+        <View style={styles.buttonGroup}>
+          <TouchableOpacity
+            style={[styles.button, styles.backButton]}
+            onPress={onCancel}
+          >
+            <Text style={styles.buttonText}>Back</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.saveButton, loading && styles.disabledButton]}
+            onPress={handleSave}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'Save'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    flex: 1,
+    flexDirection: 'row',
     backgroundColor: '#f5f5f5',
-    flexGrow: 1,
+  },
+  sidebar: {
+    width: 200,
+    backgroundColor: '#2c3e50',
+    paddingTop: 20,
+    paddingHorizontal: 0,
+    borderRightWidth: 1,
+    borderRightColor: '#1a252f',
+    minHeight: '100%',
+  },
+  sidebarTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    paddingHorizontal: 20,
+    marginBottom: 25,
+  },
+  backButtonContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a252f',
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  sectionList: {
+    gap: 8,
+  },
+  sectionButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
+  },
+  sectionButtonActive: {
+    borderLeftColor: '#007AFF',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+  },
+  sectionButtonText: {
+    fontSize: 16,
+    color: '#aaa',
+    fontWeight: '500',
+  },
+  sectionButtonTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  contentArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+    minHeight: '100%',
+  },
+  contentContainer: {
+    padding: 25,
+    paddingBottom: 80,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 25,
+    color: '#333',
   },
   title: {
     fontSize: 24,
@@ -188,7 +342,7 @@ const styles = StyleSheet.create({
     color: '#444',
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f9f9f9',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
@@ -204,7 +358,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
+    backgroundColor: '#f9f9f9',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
@@ -248,20 +402,28 @@ const styles = StyleSheet.create({
   buttonGroup: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    paddingHorizontal: 25,
+    paddingBottom: 20,
+    gap: 10,
+    position: 'absolute',
+    bottom: 0,
+    left: 200,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
   },
   button: {
     flex: 1,
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginHorizontal: 5,
   },
-  cancelButton: {
+  backButton: {
     backgroundColor: '#ccc',
   },
   saveButton: {
-    backgroundColor: '#007AFF', // iOS Blue
+    backgroundColor: '#007AFF',
   },
   disabledButton: {
     opacity: 0.7,
@@ -270,5 +432,35 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  soundsButtonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 25,
+    gap: 12,
+  },
+  soundsButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  resetButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  saveSoundButton: {
+    backgroundColor: '#007AFF',
+  },
+  soundsButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  resetButtonText: {
+    color: '#444',
+  },
+  saveSoundButtonText: {
+    color: '#fff',
   },
 });

@@ -41,6 +41,7 @@ export const useBGM = () => {
       const { sound } = await Audio.Sound.createAsync(BGM_FILE, {
         volume,
         isLooping: true,
+        shouldPlay: false,
       });
       soundRef.current = sound;
     } catch (error) {
@@ -77,6 +78,12 @@ export const useBGM = () => {
     const clampedVolume = Math.max(0, Math.min(1, newVolume));
     setVolume(clampedVolume);
     await setBGMVolume(clampedVolume);
+    
+    // Load BGM if not already loaded
+    if (!soundRef.current) {
+      await loadBGM();
+    }
+    
     if (soundRef.current) {
       await soundRef.current.setVolumeAsync(clampedVolume);
     }
