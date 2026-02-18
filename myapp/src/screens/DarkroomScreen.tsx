@@ -4,7 +4,7 @@ import { Audio } from 'expo-av'; //expoのAudioをインポート
 import { getPhotosByStatus, updatePhotoStatus } from '../utils/sqlite';
 //import * as MediaLibrary from 'expo-media-library';
 import { Modal } from 'react-native';
-
+import { StatusBar } from 'react-native';
 // 現像処理の画面
 interface DarkroomScreenProps {
   onBack: () => void;
@@ -287,7 +287,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
 
       <TouchableOpacity
         style={styles.closeButton}
-        onPress={() => setShowModal(false)}
+        onPress={() => {setShowModal(false); onBack();}}
       >
         <Text style={styles.closeButtonText}>閉じる</Text>
       </TouchableOpacity>
