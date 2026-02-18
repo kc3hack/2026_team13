@@ -2,16 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SetupScreen } from './src/screens/SetupScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
 import { AlbumScreen } from './src/screens/AlbumScreen';
 import { DarkroomScreen } from './src/screens/DarkroomScreen';
 import { useBGM } from './src/hooks/useBGM';
 import { initDb } from './src/utils/sqlite';
+import { getUserSettings } from './src/utils/storage';
 
-type Screen = 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
+type Screen = 'Loading' | 'Setup' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('Home');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('Loading');
   const { startBGM, stopBGM } = useBGM();
 
   // Control BGM based on current screen
@@ -23,13 +25,30 @@ export default function App() {
     }
   }, [currentScreen, startBGM, stopBGM]);
 
-  // initialize database on app start
+  // Initialize database & check first-launch on app start
   useEffect(() => {
-    initDb().catch(err => console.log('DB init error', err));
+    const bootstrap = async () => {
+      await initDb().catch(err => console.log('DB init error', err));
+      const settings = await getUserSettings();
+      if (settings?.username && settings?.token) {
+        setCurrentScreen('Home');
+      } else {
+        setCurrentScreen('Setup');
+      }
+    };
+    bootstrap();
   }, []);
 
   const renderContent = () => {
       switch (currentScreen) {
+          case 'Loading':
+              return null;
+          case 'Setup':
+              return (
+                  <SetupScreen
+                      onComplete={() => setCurrentScreen('Home')}
+                  />
+              );
           case 'Home':
               return (
                   <HomeScreen 
