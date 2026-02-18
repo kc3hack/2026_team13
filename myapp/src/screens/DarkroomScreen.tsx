@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Audio } from 'expo-av';
 
 interface DarkroomScreenProps {
   onBack: () => void;
@@ -10,6 +11,61 @@ const INITIAL_SECONDS = 30;
 export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
   const [remainingSeconds, setRemainingSeconds] = useState(INITIAL_SECONDS);
   const hasShownSuccessAlert = useRef(false);
+  const waterSoundRef = useRef<Audio.Sound | null>(null);
+
+  const stopAndUnloadWaterSound = useCallback(async () => {
+    const currentSound = waterSoundRef.current;
+
+    if (!currentSound) {
+      return;
+    }
+
+    waterSoundRef.current = null;
+
+    try {
+      await currentSound.stopAsync();
+    } catch {
+      // no-op
+    }
+
+    try {
+      await currentSound.unloadAsync();
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const startWaterASMR = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../assets/sounds/water_asmr.mp3'),
+          {
+            shouldPlay: true,
+            isLooping: true,
+          },
+        );
+
+        if (!isActive) {
+          await sound.unloadAsync();
+          return;
+        }
+
+        waterSoundRef.current = sound;
+      } catch (error) {
+        console.warn('水音ASMRの再生開始に失敗しました', error);
+      }
+    };
+
+    void startWaterASMR();
+
+    return () => {
+      isActive = false;
+      void stopAndUnloadWaterSound();
+    };
+  }, [stopAndUnloadWaterSound]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -21,10 +77,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
 
   useEffect(() => {
     if (remainingSeconds === 0 && !hasShownSuccessAlert.current) {
+      void stopAndUnloadWaterSound();
       hasShownSuccessAlert.current = true;
       Alert.alert('現像完了', '現像に成功しました！');
     }
-  }, [remainingSeconds]);
+  }, [remainingSeconds, stopAndUnloadWaterSound]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
