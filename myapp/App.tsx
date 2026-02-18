@@ -6,6 +6,7 @@ import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
 import { AlbumScreen } from './src/screens/AlbumScreen';
 import { DarkroomScreen } from './src/screens/DarkroomScreen';
 import { useBGM } from './src/hooks/useBGM';
+import { initDb } from './src/utils/sqlite';
 
 type Screen = 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
 
@@ -21,6 +22,11 @@ export default function App() {
       stopBGM();
     }
   }, [currentScreen, startBGM, stopBGM]);
+
+  // initialize database on app start
+  useEffect(() => {
+    initDb().catch(err => console.log('DB init error', err));
+  }, []);
 
   const renderContent = () => {
       switch (currentScreen) {

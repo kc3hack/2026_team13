@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button, Image, View, StyleSheet, Alert, Text, TouchableOpacity } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { addPhoto } from '../utils/sqlite';
 
 interface ImagePickerScreenProps {
   onBack: () => void;
@@ -67,7 +68,26 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack }) 
       </View>
       
       {image &&
-        <Image source={{ uri: image }} style={styles.image} />}
+        <>
+          <Image source={{ uri: image }} style={styles.image} />
+          <View style={styles.saveButtonContainer}>
+            <Button
+              title="アルバムに保存"
+              onPress={async () => {
+                try {
+                  await addPhoto(image);
+                  Alert.alert('保存', '写真をアルバムに保存しました');
+                  setImage(null);
+                  onBack();
+                } catch (e) {
+                  console.log(e);
+                  Alert.alert('エラー', '保存に失敗しました');
+                }
+              }}
+            />
+          </View>
+        </>
+      }
     </View>
   );
 };
@@ -105,5 +125,9 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 10,
+  },
+  saveButtonContainer: {
+    marginTop: 20,
+    width: 200,
   }
 });
