@@ -18,6 +18,10 @@ export const getUserSettings = async (): Promise<UserSettings | null> => {
   return json ? JSON.parse(json) : null;
 };
 
+export const clearUserSettings = async (): Promise<void> => {
+  await AsyncStorage.removeItem(KEYS.USER_SETTINGS);
+};
+
 // --- Event Processing ---
 export const setLastCheckTimestamp = async (): Promise<void> => {
   await AsyncStorage.setItem(KEYS.LAST_CHECK_TIMESTAMP, Date.now().toString());

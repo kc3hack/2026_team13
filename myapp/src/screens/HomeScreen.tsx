@@ -1,17 +1,35 @@
 import React, { useRef, useState } from 'react';
-import {ActivityIndicator,Alert,Animated,PanResponder,SafeAreaView,StyleSheet,Text,TouchableOpacity,View,useWindowDimensions,} from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  PanResponder,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FILM_META } from '../types';
 
 interface HomeScreenProps {
+  onLogout: () => void;
   onOpenSettings: () => void;
   onOpenImagePicker: () => void;
   onOpenAlbum: () => void;
   onOpenDarkroom: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenImagePicker, onOpenAlbum, onOpenDarkroom }) => {
-  const { filmInventory, loading, checkForCommits, lastCheckTime, refreshInventory } = useGithubCommits();
+export const HomeScreen: React.FC<HomeScreenProps> = ({
+  onLogout,
+  onOpenSettings,
+  onOpenImagePicker,
+  onOpenAlbum,
+  onOpenDarkroom,
+}) => {
+  const { filmInventory, loading, checkForCommits, lastCheckTime } = useGithubCommits();
   const { width } = useWindowDimensions();
   const menuWidth = Math.min(300, width * 0.76);
   const closedX = menuWidth;
@@ -78,6 +96,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenIm
     }),
   ).current;
 
+  const handleLogout = () => {
+    closeMenu();
+    onLogout();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
@@ -92,10 +115,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenIm
             <Text style={styles.filmBadgeText}>{FILM_META.retro.emoji} {filmInventory.retro}</Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={openMenu}
-        >
+        <TouchableOpacity style={styles.menuButton} onPress={openMenu}>
           <Text style={styles.menuButtonText}>☰</Text>
         </TouchableOpacity>
       </View>
@@ -106,11 +126,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenIm
 
       <View style={styles.commitArea}>
         <TouchableOpacity style={styles.checkButton} onPress={handleCheckCommits} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>コミットチェック</Text>
-          )}
+          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>コミットチェック</Text>}
         </TouchableOpacity>
         <Text style={styles.infoText}>Last Check: {lastCheckTime || 'None'}</Text>
       </View>
@@ -157,6 +173,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenIm
             <TouchableOpacity style={styles.settingsAction} onPress={onOpenSettings}>
               <Text style={styles.settingsActionText}>Settings</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.logoutAction} onPress={handleLogout}>
+              <Text style={styles.logoutActionText}>ログアウト</Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
       )}
@@ -177,10 +196,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   coinBadge: {
-    // kept for reference, replaced by filmBadgeRow
   },
   coinBadgeText: {
-    // kept for reference, replaced by filmBadgeText
   },
   filmBadgeRow: {
     marginTop: 36,
@@ -379,5 +396,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1E1E1E',
     fontWeight: '600',
+  },
+  logoutAction: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#E2B5B5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#FFF7F7',
+  },
+  logoutActionText: {
+    color: '#A12A2A',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
