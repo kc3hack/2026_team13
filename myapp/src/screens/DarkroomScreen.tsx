@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Audio } from 'expo-av';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'; //reactのコンポーネントをインポート
+import { Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState} from 'react-native'; //react nativeのコンポーネントをインポート
+import { Audio } from 'expo-av'; //expoのAudioをインポート
 import { getPhotosByStatus, updatePhotoStatus } from '../utils/sqlite';
 
+// 現像処理の画面
 interface DarkroomScreenProps {
   onBack: () => void;
   photo: {
@@ -12,8 +13,10 @@ interface DarkroomScreenProps {
   } | null;
 }
 
-const INITIAL_SECONDS = 60 * 60;
+// 現像に必要な時間（秒）[初期値=1時間] - 開発中は短くしてもOK
+const INITIAL_SECONDS = 30;
 
+// 現像処理の画面コンポーネント
 export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo }) => {
   const [developingPhoto, setDevelopingPhoto] = useState<DarkroomScreenProps['photo']>(photo);
   const [remainingSeconds, setRemainingSeconds] = useState(INITIAL_SECONDS);
@@ -22,7 +25,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
   const waterSoundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
-    let isActive = true;
+    let isActive = true; // クリーンアップのためのフラグ
 
     const resolveDevelopingPhoto = async () => {
       if (photo) {
@@ -57,6 +60,25 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       isActive = false;
     };
   }, [photo]);
+
+  useEffect(() => {
+  let wasBackground = false;
+
+  const subscription = AppState.addEventListener("change", (nextState) => {
+    if (nextState === "background") {
+      wasBackground = true;
+      //onBack(); // ホーム画面へ戻る
+    }
+
+    if (nextState === "active" && wasBackground) {
+      wasBackground = false;
+      Alert.alert("現像失敗", "アプリを離れたため現像が中断されました");
+      onBack(); // ホーム画面へ戻る
+    }
+  });
+
+  return () => subscription.remove();
+  }, [onBack]);
 
   const stopAndUnloadWaterSound = useCallback(async () => {
     const currentSound = waterSoundRef.current;
