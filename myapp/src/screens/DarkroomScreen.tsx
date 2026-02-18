@@ -111,7 +111,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
       <View style={styles.glowSmall} />
 
       <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-        <Text style={styles.backButtonText}>← 戻る</Text>
+        <Text style={styles.backButtonText}>← Back</Text>
       </TouchableOpacity>
 
       <View style={styles.timerWrap}>
@@ -150,18 +150,13 @@ const styles = StyleSheet.create({
   backButton: {
     position: 'absolute',
     top: 36,
-    left: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.55)',
-    backgroundColor: 'rgba(20, 0, 0, 0.55)',
+    left: 20,
+    paddingVertical: 12,
   },
   backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
   },
   timerWrap: {
     alignItems: 'center',
