@@ -1,17 +1,62 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Audio } from 'expo-av';
+import { getPhotosByStatus, updatePhotoStatus } from '../utils/sqlite';
 
 interface DarkroomScreenProps {
   onBack: () => void;
+  photo: {
+    id: number;
+    uri: string;
+    filmId: number;
+  } | null;
 }
 
-const INITIAL_SECONDS = 30;
+const INITIAL_SECONDS = 60 * 60;
 
-export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
+export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo }) => {
+  const [developingPhoto, setDevelopingPhoto] = useState<DarkroomScreenProps['photo']>(photo);
   const [remainingSeconds, setRemainingSeconds] = useState(INITIAL_SECONDS);
   const hasShownSuccessAlert = useRef(false);
+  const hasUpdatedStatus = useRef(false);
   const waterSoundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const resolveDevelopingPhoto = async () => {
+      if (photo) {
+        setDevelopingPhoto(photo);
+        return;
+      }
+
+      try {
+        const undeveloped = await getPhotosByStatus('undeveloped');
+        if (!isActive) {
+          return;
+        }
+
+        if (undeveloped.length > 0) {
+          const latest = undeveloped[0];
+          setDevelopingPhoto({
+            id: latest.id,
+            uri: latest.uri,
+            filmId: latest.film_id,
+          });
+        } else {
+          setDevelopingPhoto(null);
+        }
+      } catch (error) {
+        console.log('failed to load undeveloped photo', error);
+      }
+    };
+
+    void resolveDevelopingPhoto();
+
+    return () => {
+      isActive = false;
+    };
+  }, [photo]);
 
   const stopAndUnloadWaterSound = useCallback(async () => {
     const currentSound = waterSoundRef.current;
@@ -68,20 +113,30 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
   }, [stopAndUnloadWaterSound]);
 
   useEffect(() => {
+    if (!developingPhoto) {
+      return;
+    }
+
     const timer = setInterval(() => {
       setRemainingSeconds((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [developingPhoto]);
 
   useEffect(() => {
     if (remainingSeconds === 0 && !hasShownSuccessAlert.current) {
       void stopAndUnloadWaterSound();
       hasShownSuccessAlert.current = true;
+      if (developingPhoto && !hasUpdatedStatus.current) {
+        hasUpdatedStatus.current = true;
+        void updatePhotoStatus(developingPhoto.id, 'developed').catch((error) => {
+          console.log('failed to update photo status', error);
+        });
+      }
       Alert.alert('現像完了', '現像に成功しました！');
     }
-  }, [remainingSeconds, stopAndUnloadWaterSound]);
+  }, [developingPhoto, remainingSeconds, stopAndUnloadWaterSound]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
@@ -96,7 +151,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
   const handleBackPress = () => {
     Alert.alert(
       '暗室を終了',
-      '現像が中断されますがよろしいですか？',
+      '暗室を出るとタイマーはリセットされます。よろしいですか？',
       [
         { text: 'キャンセル', style: 'cancel' },
         { text: '戻る', style: 'destructive', onPress: onBack },
@@ -114,6 +169,15 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
         <Text style={styles.backButtonText}>← 戻る</Text>
       </TouchableOpacity>
 
+      <View style={styles.pendingWrap}>
+        <Text style={styles.pendingTitle}>現像待ちの写真</Text>
+        {developingPhoto ? (
+          <Image source={{ uri: developingPhoto.uri }} style={styles.pendingPhoto} />
+        ) : (
+          <Text style={styles.pendingEmpty}>現像対象の写真がありません</Text>
+        )}
+      </View>
+
       <View style={styles.timerWrap}>
         <Text style={styles.timerLabel}>DEVELOPING</Text>
         <Text style={styles.timerText}>{displayTime}</Text>
@@ -126,8 +190,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#050505',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: 90,
   },
   glowLarge: {
     position: 'absolute',
@@ -162,6 +227,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  pendingWrap: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 42,
+  },
+  pendingTitle: {
+    color: '#E8D3D3',
+    fontSize: 16,
+    marginBottom: 12,
+    fontWeight: '700',
+  },
+  pendingPhoto: {
+    width: 220,
+    height: 220,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  pendingEmpty: {
+    color: '#C5B7B7',
+    fontSize: 13,
   },
   timerWrap: {
     alignItems: 'center',
