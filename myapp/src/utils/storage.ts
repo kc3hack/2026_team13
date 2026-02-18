@@ -4,8 +4,6 @@ import { UserSettings } from '../types';
 
 const KEYS = {
   USER_SETTINGS: 'USER_SETTINGS',
-  COIN_BALANCE: 'COIN_BALANCE',
-  LAST_PROCESSED_EVENT_ID: 'LAST_PROCESSED_EVENT_ID',
   LAST_CHECK_TIMESTAMP: 'LAST_CHECK_TIMESTAMP',
   BGM_VOLUME: 'BGM_VOLUME',
 };
@@ -20,26 +18,7 @@ export const getUserSettings = async (): Promise<UserSettings | null> => {
   return json ? JSON.parse(json) : null;
 };
 
-// --- Coin Balance ---
-export const getCoinBalance = async (): Promise<number> => {
-  const val = await AsyncStorage.getItem(KEYS.COIN_BALANCE);
-  return val ? parseInt(val, 10) : 0;
-};
-
-export const updateCoinBalance = async (amount: number): Promise<void> => {
-  const current = await getCoinBalance();
-  await AsyncStorage.setItem(KEYS.COIN_BALANCE, (current + amount).toString());
-};
-
 // --- Event Processing ---
-export const getLastProcessedEventId = async (): Promise<string | null> => {
-  return AsyncStorage.getItem(KEYS.LAST_PROCESSED_EVENT_ID);
-};
-
-export const setLastProcessedEventId = async (eventId: string): Promise<void> => {
-  await AsyncStorage.setItem(KEYS.LAST_PROCESSED_EVENT_ID, eventId);
-};
-
 export const setLastCheckTimestamp = async (): Promise<void> => {
   await AsyncStorage.setItem(KEYS.LAST_CHECK_TIMESTAMP, Date.now().toString());
 };

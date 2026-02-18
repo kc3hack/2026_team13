@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {ActivityIndicator,Alert,Animated,PanResponder,SafeAreaView,StyleSheet,Text,TouchableOpacity,View,useWindowDimensions,} from 'react-native';
 import { useGithubCommits } from '../hooks/useGithubCommits';
+import { FILM_META } from '../types';
 
 interface HomeScreenProps {
   onOpenSettings: () => void;
@@ -10,7 +11,7 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenImagePicker, onOpenAlbum, onOpenDarkroom }) => {
-  const { coinBalance, loading, checkForCommits, lastCheckTime, refreshBalance } = useGithubCommits();
+  const { filmInventory, loading, checkForCommits, lastCheckTime, refreshInventory } = useGithubCommits();
   const { width } = useWindowDimensions();
   const menuWidth = Math.min(300, width * 0.76);
   const closedX = menuWidth;
@@ -80,8 +81,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenIm
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
-        <View style={styles.coinBadge}>
-          <Text style={styles.coinBadgeText}>🪙 {coinBalance}</Text>
+        <View style={styles.filmBadgeRow}>
+          <View style={styles.filmBadge}>
+            <Text style={styles.filmBadgeText}>{FILM_META.mono.emoji} {filmInventory.mono}</Text>
+          </View>
+          <View style={styles.filmBadge}>
+            <Text style={styles.filmBadgeText}>{FILM_META.vivid.emoji} {filmInventory.vivid}</Text>
+          </View>
+          <View style={styles.filmBadge}>
+            <Text style={styles.filmBadgeText}>{FILM_META.retro.emoji} {filmInventory.retro}</Text>
+          </View>
         </View>
         <TouchableOpacity
           style={styles.menuButton}
@@ -168,16 +177,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   coinBadge: {
+    // kept for reference, replaced by filmBadgeRow
+  },
+  coinBadgeText: {
+    // kept for reference, replaced by filmBadgeText
+  },
+  filmBadgeRow: {
     marginTop: 36,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filmBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderWidth: 1,
     borderColor: '#D6D6D6',
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
   },
-  coinBadgeText: {
-    fontSize: 16,
+  filmBadgeText: {
+    fontSize: 14,
     color: '#1A1A1A',
     fontWeight: '600',
   },

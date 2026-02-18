@@ -1,19 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import { fetchUserRepos, fetchRepoCommits } from '../api/githubAPI';
+import { addFilm, getFilmInventory } from '../utils/sqlite';
 import {
-  getCoinBalance,
   getLastCheckTimestamp,
   getUserSettings,
   setLastCheckTimestamp,
-  updateCoinBalance,
 } from '../utils/storage';
-import { UserSettings, GitHubRepoCommit } from '../types';
+import { FilmInventory, FilmType, FILM_META, FILM_TYPES, UserSettings, GitHubRepoCommit } from '../types';
 
 export interface CheckResult {
   success: boolean;
   message: string;
   newCommits: number;
-  coinsEarned: number;
+  filmsAwarded: { type: FilmType; label: string; emoji: string }[];
 }
 
 /**
@@ -46,20 +45,25 @@ const isMyCommit = (
   );
 };
 
+/** Pick a random film type */
+const pickRandomFilm = (): FilmType => {
+  return FILM_TYPES[Math.floor(Math.random() * FILM_TYPES.length)];
+};
+
 export const useGithubCommits = () => {
   const [loading, setLoading] = useState(false);
-  const [coinBalance, setCoinBalance] = useState(0);
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
   const [lastCheckTime, setLastCheckTime] = useState<string | null>(null);
 
-  const refreshBalance = useCallback(async () => {
-    const balance = await getCoinBalance();
-    setCoinBalance(balance);
+  const refreshInventory = useCallback(async () => {
+    const inv = await getFilmInventory();
+    setFilmInventory(inv);
   }, []);
 
   useEffect(() => {
     const loadState = async () => {
-      const balance = await getCoinBalance();
-      setCoinBalance(balance);
+      const inv = await getFilmInventory();
+      setFilmInventory(inv);
       const ts = await getLastCheckTimestamp();
       if (ts) {
         setLastCheckTime(new Date(ts).toLocaleString('ja-JP'));
@@ -75,7 +79,7 @@ export const useGithubCommits = () => {
         success: false,
         message: 'GitHubのユーザー名とトークンを設定画面で入力してください。',
         newCommits: 0,
-        coinsEarned: 0,
+        filmsAwarded: [],
       };
     }
 
@@ -92,9 +96,9 @@ export const useGithubCommits = () => {
         setLastCheckTime(new Date().toLocaleString('ja-JP'));
         return {
           success: true,
-          message: '初回チェック完了！次回以降、新しいコミットが検出されるとコインが付与されます。',
+          message: '初回チェック完了！次回以降、新しいコミットが検出されるとフィルムが付与されます。',
           newCommits: 0,
-          coinsEarned: 0,
+          filmsAwarded: [],
         };
       }
 
@@ -108,7 +112,7 @@ export const useGithubCommits = () => {
           success: false,
           message: 'GitHub APIからの応答が不正です。トークンの権限を確認してください。',
           newCommits: 0,
-          coinsEarned: 0,
+          filmsAwarded: [],
         };
       }
 
@@ -128,7 +132,7 @@ export const useGithubCommits = () => {
           success: true,
           message: '新しいプッシュはありません。',
           newCommits: 0,
-          coinsEarned: 0,
+          filmsAwarded: [],
         };
       }
 
@@ -173,35 +177,49 @@ export const useGithubCommits = () => {
 
       console.log(`[CommitCheck] 検出コミット数: ${newCommitsCount}`);
 
-      // 4. Award coins
-      let coinsEarned = 0;
+      // 4. Award random films (one per commit)
+      const filmsAwarded: { type: FilmType; label: string; emoji: string }[] = [];
       if (newCommitsCount > 0) {
-        const rewardPerCommit = 10;
-        coinsEarned = newCommitsCount * rewardPerCommit;
-        await updateCoinBalance(coinsEarned);
+        for (let i = 0; i < newCommitsCount; i++) {
+          const filmType = pickRandomFilm();
+          await addFilm(filmType);
+          const meta = FILM_META[filmType];
+          filmsAwarded.push({ type: filmType, label: meta.label, emoji: meta.emoji });
+        }
+        console.log('[CommitCheck] 付与フィルム:', filmsAwarded.map(f => `${f.emoji}${f.label}`).join(', '));
       }
 
-      // Refresh balance from storage
-      const latestBalance = await getCoinBalance();
-      setCoinBalance(latestBalance);
+      // Refresh inventory from storage
+      const latestInventory = await getFilmInventory();
+      setFilmInventory(latestInventory);
 
       // 5. Update last check timestamp
       await setLastCheckTimestamp();
       setLastCheckTime(new Date().toLocaleString('ja-JP'));
 
       if (newCommitsCount > 0) {
+        // Build summary of awarded films
+        const filmCounts: Record<string, number> = {};
+        for (const f of filmsAwarded) {
+          const key = `${f.emoji} ${f.label}`;
+          filmCounts[key] = (filmCounts[key] || 0) + 1;
+        }
+        const filmSummary = Object.entries(filmCounts)
+          .map(([name, count]) => `${name} ×${count}`)
+          .join('\n');
+
         return {
           success: true,
-          message: `${newCommitsCount}件の新しいコミットを検出！\n${coinsEarned}コインを獲得しました！`,
+          message: `${newCommitsCount}件の新しいコミットを検出！\n\nフィルムを獲得しました：\n${filmSummary}`,
           newCommits: newCommitsCount,
-          coinsEarned,
+          filmsAwarded,
         };
       } else {
         return {
           success: true,
           message: `${recentRepos.length}件のリポジトリにプッシュがありましたが、\nあなたのコミットは見つかりませんでした。\n\n設定画面でGit Emailを登録すると検出精度が向上します。`,
           newCommits: 0,
-          coinsEarned: 0,
+          filmsAwarded: [],
         };
       }
     } catch (error: any) {
@@ -211,7 +229,7 @@ export const useGithubCommits = () => {
         success: false,
         message: `エラーが発生しました:\n${errorMsg}`,
         newCommits: 0,
-        coinsEarned: 0,
+        filmsAwarded: [],
       };
     } finally {
       setLoading(false);
@@ -219,10 +237,10 @@ export const useGithubCommits = () => {
   }, []);
 
   return {
-    coinBalance,
+    filmInventory,
     loading,
     checkForCommits,
     lastCheckTime,
-    refreshBalance,
+    refreshInventory,
   };
 };
