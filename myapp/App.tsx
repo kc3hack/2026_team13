@@ -8,7 +8,7 @@ import { DarkroomScreen } from './src/screens/DarkroomScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { useBGM } from './src/hooks/useBGM';
 import { initDb } from './src/utils/sqlite';
-import { getUserSettings } from './src/utils/storage';
+import { clearUserSettings, getUserSettings } from './src/utils/storage';
 
 type Screen = 'Login' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
 
@@ -30,6 +30,11 @@ export default function App() {
   useEffect(() => {
     initDb().catch(err => console.log('DB init error', err));
   }, []);
+
+  const handleLogout = async () => {
+    await clearUserSettings();
+    setCurrentScreen('Login');
+  };
 
   // Decide initial route by saved login settings
   useEffect(() => {
@@ -64,6 +69,7 @@ export default function App() {
                       onOpenImagePicker={() => setCurrentScreen('ImagePicker')}
                       onOpenAlbum={() => setCurrentScreen('Album')}
                       onOpenDarkroom={() => setCurrentScreen('Darkroom')}
+                  onLogout={handleLogout}
                   />
               );
           case 'Settings':
