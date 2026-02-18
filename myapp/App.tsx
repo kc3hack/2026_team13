@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SetupScreen } from './src/screens/SetupScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
 import { AlbumScreen } from './src/screens/AlbumScreen';
 import { DarkroomScreen } from './src/screens/DarkroomScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { useBGM } from './src/hooks/useBGM';
 import { initDb } from './src/utils/sqlite';
-import { clearUserSettings, getUserSettings } from './src/utils/storage';
+import { getUserSettings } from './src/utils/storage';
 
-type Screen = 'Login' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
+type Screen = 'Loading' | 'Setup' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('Login');
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [currentScreen, setCurrentScreen] = useState<Screen>('Loading');
   const { startBGM, stopBGM } = useBGM();
 
   // Control BGM based on current screen
@@ -26,9 +26,18 @@ export default function App() {
     }
   }, [currentScreen, startBGM, stopBGM]);
 
-  // initialize database on app start
+  // Initialize database & check first-launch on app start
   useEffect(() => {
-    initDb().catch(err => console.log('DB init error', err));
+    const bootstrap = async () => {
+      await initDb().catch(err => console.log('DB init error', err));
+      const settings = await getUserSettings();
+      if (settings?.username && settings?.token) {
+        setCurrentScreen('Home');
+      } else {
+        setCurrentScreen('Setup');
+      }
+    };
+    bootstrap();
   }, []);
 
   const handleLogout = async () => {
@@ -56,10 +65,12 @@ export default function App() {
 
   const renderContent = () => {
       switch (currentScreen) {
-          case 'Login':
+          case 'Loading':
+              return null;
+          case 'Setup':
               return (
-                  <LoginScreen
-                      onLoginSuccess={() => setCurrentScreen('Home')}
+                  <SetupScreen
+                      onComplete={() => setCurrentScreen('Home')}
                   />
               );
           case 'Home':
