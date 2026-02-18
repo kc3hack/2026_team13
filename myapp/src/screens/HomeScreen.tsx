@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import {ActivityIndicator,Animated,PanResponder,SafeAreaView,StyleSheet,Text,TouchableOpacity,View,useWindowDimensions,} from 'react-native';
+import {ActivityIndicator,Alert,Animated,PanResponder,SafeAreaView,StyleSheet,Text,TouchableOpacity,View,useWindowDimensions,} from 'react-native';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 
 interface HomeScreenProps {
@@ -10,12 +10,19 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenImagePicker, onOpenAlbum, onOpenDarkroom }) => {
-  const { coinBalance, loading, checkForCommits, lastEventId } = useGithubCommits();
+  const { coinBalance, loading, checkForCommits, lastCheckTime, refreshBalance } = useGithubCommits();
   const { width } = useWindowDimensions();
   const menuWidth = Math.min(300, width * 0.76);
   const closedX = menuWidth;
   const menuTranslateX = useRef(new Animated.Value(closedX)).current;
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleCheckCommits = async () => {
+    const result = await checkForCommits();
+    if (result) {
+      Alert.alert('コミットチェック', result.message);
+    }
+  };
 
   const openMenu = () => {
     setMenuOpen(true);
@@ -89,14 +96,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenSettings, onOpenIm
       </View>
 
       <View style={styles.commitArea}>
-        <TouchableOpacity style={styles.checkButton} onPress={checkForCommits} disabled={loading}>
+        <TouchableOpacity style={styles.checkButton} onPress={handleCheckCommits} disabled={loading}>
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.buttonText}>コミットチェック</Text>
           )}
         </TouchableOpacity>
-        <Text style={styles.infoText}>Last Event: {lastEventId || 'None'}</Text>
+        <Text style={styles.infoText}>Last Check: {lastCheckTime || 'None'}</Text>
       </View>
 
       <View style={styles.bottomControls}>

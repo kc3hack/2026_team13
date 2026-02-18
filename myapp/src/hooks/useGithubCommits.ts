@@ -1,141 +1,218 @@
 import { useState, useCallback, useEffect } from 'react';
-import { fetchUserEvents } from '../api/githubAPI';
+import { fetchUserRepos, fetchRepoCommits } from '../api/githubAPI';
 import {
   getCoinBalance,
-  getLastProcessedEventId,
+  getLastCheckTimestamp,
   getUserSettings,
-  saveUserSettings,
-  setLastProcessedEventId,
+  setLastCheckTimestamp,
   updateCoinBalance,
 } from '../utils/storage';
-import { GitHubEvent } from '../types';
+import { UserSettings, GitHubRepoCommit } from '../types';
+
+export interface CheckResult {
+  success: boolean;
+  message: string;
+  newCommits: number;
+  coinsEarned: number;
+}
+
+/**
+ * Determines if a commit belongs to the authenticated user.
+ */
+const isMyCommit = (
+  commit: GitHubRepoCommit,
+  settings: UserSettings
+): boolean => {
+  const usernameLower = settings.username.toLowerCase();
+  const gitEmailLower = settings.gitEmail?.toLowerCase();
+  const authorEmailLower = commit.commit.author.email.toLowerCase();
+  const authorNameLower = commit.commit.author.name.toLowerCase();
+
+  // Strategy 1: Match by configured Git Email (most reliable)
+  if (gitEmailLower) {
+    return authorEmailLower === gitEmailLower;
+  }
+
+  // Strategy 2: Match by linked GitHub account (reliable when commit is linked)
+  if (commit.author?.login) {
+    return commit.author.login.toLowerCase() === usernameLower;
+  }
+
+  // Strategy 3: Match by author name or GitHub noreply email
+  return (
+    authorNameLower === usernameLower ||
+    authorEmailLower.includes(usernameLower) ||
+    authorEmailLower.endsWith('@users.noreply.github.com')
+  );
+};
 
 export const useGithubCommits = () => {
   const [loading, setLoading] = useState(false);
   const [coinBalance, setCoinBalance] = useState(0);
-  const [lastEventId, setLastEventId] = useState<string | null>(null);
+  const [lastCheckTime, setLastCheckTime] = useState<string | null>(null);
 
-  // Load initial state
+  const refreshBalance = useCallback(async () => {
+    const balance = await getCoinBalance();
+    setCoinBalance(balance);
+  }, []);
+
   useEffect(() => {
     const loadState = async () => {
       const balance = await getCoinBalance();
-      const eventId = await getLastProcessedEventId();
       setCoinBalance(balance);
-      setLastEventId(eventId);
+      const ts = await getLastCheckTimestamp();
+      if (ts) {
+        setLastCheckTime(new Date(ts).toLocaleString('ja-JP'));
+      }
     };
     loadState();
   }, []);
 
-  const checkForCommits = useCallback(async () => {
+  const checkForCommits = useCallback(async (): Promise<CheckResult> => {
     const settings = await getUserSettings();
     if (!settings?.username || !settings?.token) {
-      console.log('User settings not found');
-      return;
+      return {
+        success: false,
+        message: 'GitHubのユーザー名とトークンを設定画面で入力してください。',
+        newCommits: 0,
+        coinsEarned: 0,
+      };
     }
 
     setLoading(true);
     try {
-      // 1. Fetch latest events
-      const events = await fetchUserEvents(settings);
-      
-      // 2. Filter for PushEvents
-      const pushEvents = events.filter((e) => e.type === 'PushEvent');
+      console.log('[CommitCheck] ユーザー:', settings.username, '| gitEmail:', settings.gitEmail || '(未設定)');
 
-      if (pushEvents.length === 0) {
-        setLoading(false);
-        return;
+      const lastTimestamp = await getLastCheckTimestamp();
+      console.log(`[CommitCheck] 前回チェック: ${lastTimestamp ? new Date(lastTimestamp).toISOString() : '(初回)'}`);
+
+      if (!lastTimestamp) {
+        // First time: set timestamp and return without awarding coins
+        await setLastCheckTimestamp();
+        setLastCheckTime(new Date().toLocaleString('ja-JP'));
+        return {
+          success: true,
+          message: '初回チェック完了！次回以降、新しいコミットが検出されるとコインが付与されます。',
+          newCommits: 0,
+          coinsEarned: 0,
+        };
       }
 
-      // If first run (no lastEventId), just mark the latest as processed to avoid massive initial coin gain
-      // OR: Process all recent events? better to start fresh from "now".
-      const currentLastEventId = await getLastProcessedEventId();
-      
-      if (!currentLastEventId) {
-        // First time running: mark the latest event as processed without awarding coins
-        await setLastProcessedEventId(pushEvents[0].id);
-        setLastEventId(pushEvents[0].id);
-        setLoading(false);
-        return;
+      // 1. Fetch user's repos sorted by most recently pushed
+      const repos = await fetchUserRepos(settings);
+      console.log(`[CommitCheck] 取得リポジトリ数: ${repos.length}`);
+
+      if (!Array.isArray(repos)) {
+        console.error('[CommitCheck] Unexpected repos response:', JSON.stringify(repos).slice(0, 500));
+        return {
+          success: false,
+          message: 'GitHub APIからの応答が不正です。トークンの権限を確認してください。',
+          newCommits: 0,
+          coinsEarned: 0,
+        };
       }
 
-      // 3. Find new events since last processed ID
-      const newEvents: GitHubEvent[] = [];
-      
-      // Since API returns events in desc order (newest first), we iterate until we find the last processed ID
-      for (const event of pushEvents) {
-        if (event.id === currentLastEventId) {
-          break; 
-        }
-        newEvents.push(event);
+      // 2. Filter repos pushed after last check
+      const recentRepos = repos.filter(
+        (r) => new Date(r.pushed_at).getTime() > lastTimestamp
+      );
+      console.log(`[CommitCheck] 前回以降にpushされたリポジトリ数: ${recentRepos.length}`);
+      for (const repo of recentRepos) {
+        console.log(`  [Repo] ${repo.full_name} (private=${repo.private}) pushed_at=${repo.pushed_at}`);
       }
 
-      if (newEvents.length === 0) {
-        setLoading(false);
-        return;
+      if (recentRepos.length === 0) {
+        await setLastCheckTimestamp();
+        setLastCheckTime(new Date().toLocaleString('ja-JP'));
+        return {
+          success: true,
+          message: '新しいプッシュはありません。',
+          newCommits: 0,
+          coinsEarned: 0,
+        };
       }
 
-      // 4. Calculate commits
+      // 3. For each recently pushed repo, fetch commits since last check
+      const sinceISO = new Date(lastTimestamp).toISOString();
       let newCommitsCount = 0;
-      
-      for (const event of newEvents) {
-        if (!event.payload || !event.payload.commits) continue;
-        
-        // Only process commits if the actor is the user (basic security check)
-        // Although the user might push commits by others, typically we only care if they pushed their own work?
-        // Requirement says: "In the target repo, when a push occurs, count the user's commits included in that push"
-        // So even if I push someone else's commit, it shouldn't count.
-        // But if I push my own commit, it counts.
-        
-        for (const commit of event.payload.commits) {
-          let isMyCommit = false;
 
-          // Strategy 1: Match by configured Git Email
-          if (settings.gitEmail && commit.author.email.toLowerCase() === settings.gitEmail.toLowerCase()) {
-            isMyCommit = true;
-          } 
-          // Strategy 2: Match by GitHub Username (less reliable as git config user.name might differ)
-          else if (commit.author.name.toLowerCase() === settings.username.toLowerCase()) {
-            isMyCommit = true;
-          }
-          // Strategy 3: Loose match if no email configured
-          else if (!settings.gitEmail && event.actor.login.toLowerCase() === settings.username.toLowerCase()) {
-             // If the pusher is the user, and we have no email config, we might assume the commit is theirs 
-             // IF the commit author name looks like the username.
-             // But to be safe, let's stick to author name check or email check.
-             // If the user hasn't set up gitEmail, let's try to match author.name with username.
-             isMyCommit = commit.author.name.toLowerCase().includes(settings.username.toLowerCase());
-          }
+      for (const repo of recentRepos) {
+        console.log(`[CommitCheck] ${repo.full_name} のコミットを取得中... (since=${sinceISO})`);
 
-          if (isMyCommit) {
+        let commits: GitHubRepoCommit[];
+        try {
+          commits = await fetchRepoCommits(settings, repo.full_name, sinceISO);
+        } catch (err: any) {
+          console.warn(`[CommitCheck] ${repo.full_name} のコミット取得をスキップ: ${err.message}`);
+          continue;
+        }
+
+        if (!Array.isArray(commits)) {
+          console.warn(`[CommitCheck] ${repo.full_name}: unexpected response, skipping`);
+          continue;
+        }
+
+        console.log(`  取得コミット数: ${commits.length}`);
+
+        for (const commit of commits) {
+          const mine = isMyCommit(commit, settings);
+          console.log(
+            `    [Commit] sha=${commit.sha.slice(0, 7)} ` +
+            `author="${commit.commit.author.name}" ` +
+            `email="${commit.commit.author.email}" ` +
+            `ghUser=${commit.author?.login || '(unlinked)'} ` +
+            `mine=${mine} ` +
+            `msg="${commit.commit.message.split('\n')[0].slice(0, 60)}"`
+          );
+
+          if (mine) {
             newCommitsCount++;
           }
         }
       }
 
-      // 5. Update coins
+      console.log(`[CommitCheck] 検出コミット数: ${newCommitsCount}`);
+
+      // 4. Award coins
+      let coinsEarned = 0;
       if (newCommitsCount > 0) {
         const rewardPerCommit = 10;
-        const totalReward = newCommitsCount * rewardPerCommit;
-        
-        // Fetch fresh balance before updating
-        const currentBalance = await getCoinBalance();
-        const newBalance = currentBalance + totalReward;
-        
-        await updateCoinBalance(totalReward); // Add difference
-        setCoinBalance(newBalance);
+        coinsEarned = newCommitsCount * rewardPerCommit;
+        await updateCoinBalance(coinsEarned);
       }
 
-      // 6. Update last processed event ID (the most recent one in the list is at index 0 of pushEvents)
-      // Note: newEvents[0] is the newest processed event.
-      if (newEvents.length > 0) {
-        // We use the ID of the newest event we found
-        const newestEventId = newEvents[0].id;
-        await setLastProcessedEventId(newestEventId); 
-        setLastEventId(newestEventId);
-      }
+      // Refresh balance from storage
+      const latestBalance = await getCoinBalance();
+      setCoinBalance(latestBalance);
 
-    } catch (error) {
-      console.error('Error checking for commits:', error);
+      // 5. Update last check timestamp
+      await setLastCheckTimestamp();
+      setLastCheckTime(new Date().toLocaleString('ja-JP'));
+
+      if (newCommitsCount > 0) {
+        return {
+          success: true,
+          message: `${newCommitsCount}件の新しいコミットを検出！\n${coinsEarned}コインを獲得しました！`,
+          newCommits: newCommitsCount,
+          coinsEarned,
+        };
+      } else {
+        return {
+          success: true,
+          message: `${recentRepos.length}件のリポジトリにプッシュがありましたが、\nあなたのコミットは見つかりませんでした。\n\n設定画面でGit Emailを登録すると検出精度が向上します。`,
+          newCommits: 0,
+          coinsEarned: 0,
+        };
+      }
+    } catch (error: any) {
+      console.error('[CommitCheck] Error:', error);
+      const errorMsg = error?.message || String(error);
+      return {
+        success: false,
+        message: `エラーが発生しました:\n${errorMsg}`,
+        newCommits: 0,
+        coinsEarned: 0,
+      };
     } finally {
       setLoading(false);
     }
@@ -145,6 +222,7 @@ export const useGithubCommits = () => {
     coinBalance,
     loading,
     checkForCommits,
-    lastEventId
+    lastCheckTime,
+    refreshBalance,
   };
 };
