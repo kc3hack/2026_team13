@@ -46,3 +46,38 @@ export interface UserSettings {
   token: string;
   gitEmail?: string; // Optional: used to match commits accurately
 }
+
+// --- Repo-based commit detection types ---
+
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  pushed_at: string; // ISO 8601
+  owner: {
+    login: string;
+  };
+}
+
+export interface GitHubRepoCommit {
+  sha: string;
+  commit: {
+    author: {
+      name: string;
+      email: string;
+      date: string;
+    };
+    committer: {
+      name: string;
+      email: string;
+      date: string;
+    };
+    message: string;
+  };
+  author: {
+    login: string;
+    id: number;
+  } | null;
+  html_url: string;
+}
