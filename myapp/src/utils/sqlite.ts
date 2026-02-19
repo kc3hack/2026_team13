@@ -66,6 +66,8 @@ export const initDatabase = async (): Promise<void> => {
     }
   }
 
+  await db.runAsync("UPDATE photos SET created_at = datetime('now', 'localtime') WHERE created_at IS NULL OR created_at = ''; ");
+
   await ensureFilmsSeeded();
 
   // 3種のフィルム行が存在しなければ初期挿入
@@ -90,7 +92,7 @@ export const addPhoto = async (
   status: 'undeveloped' | 'developed' = 'undeveloped',
 ): Promise<number> => {
   const result = await db.runAsync(
-    'INSERT INTO photos (uri, film_id, status) VALUES (?, ?, ?);',
+    "INSERT INTO photos (uri, film_id, status, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'));",
     [uri, filmId, status],
   );
   return result.lastInsertRowId;
@@ -103,7 +105,7 @@ export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Pr
       p.uri,
       p.film_id,
       p.status,
-      p.created_at,
+      COALESCE(p.created_at, datetime('now', 'localtime')) AS created_at,
       f.name AS film_name
     FROM photos p
     LEFT JOIN films f ON p.film_id = f.id

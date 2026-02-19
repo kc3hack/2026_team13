@@ -119,8 +119,8 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
         <Image source={{ uri: item.uri }} style={styles.photo} />
         {selectedTab === 'undeveloped' && (
           <BlurView
-            intensity={20}
-            tint="light"
+            intensity={12}
+            tint="default"
             experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
             style={styles.photoBlurOverlay}
           />
@@ -195,8 +195,8 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
               <Image source={{ uri: selectedPhoto.uri }} style={styles.detailImage} resizeMode="contain" />
               {selectedPhoto.status === 'undeveloped' && (
                 <BlurView
-                  intensity={24}
-                  tint="light"
+                  intensity={16}
+                  tint="default"
                   experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
                   style={styles.detailBlurOverlay}
                 />
@@ -338,6 +338,7 @@ const styles = StyleSheet.create({
   photoBlurOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   metaText: {
     fontSize: 10,
@@ -378,6 +379,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     top: '11%',
     bottom: '11%',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   menuBackdrop: {
     flex: 1,
