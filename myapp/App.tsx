@@ -113,6 +113,16 @@ export default function App() {
       }
   };
 
+  // SetupScreen is rendered full-screen (outside SafeAreaView)
+  if (currentScreen === 'Setup') {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        {renderContent()}
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
