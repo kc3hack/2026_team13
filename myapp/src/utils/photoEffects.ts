@@ -10,8 +10,8 @@ if (typeof globalThis.Buffer === 'undefined') {
 }
 
 const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
-const YIELD_EVERY_PIXELS = 4096;
-const MAX_PROCESS_WIDTH = 1600;
+const YIELD_EVERY_PIXELS = 16384;
+const MAX_PROCESS_WIDTH = 1280;
 
 const yieldToMainThread = async (): Promise<void> => {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));

@@ -59,6 +59,7 @@ export const useBGM = () => {
           // no-op
         }
       }
+
       const { sound } = await Audio.Sound.createAsync(BGM_FILE, {
         volume,
         isLooping: true,
