@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Button, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
@@ -234,7 +234,12 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       {image &&
         <View style={styles.imageWrap}>
           <Image source={{ uri: image }} style={styles.image} />
-          <BlurView intensity={20} tint="light" style={styles.imageBlurOverlay} />
+          <BlurView
+            intensity={20}
+            tint="light"
+            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            style={styles.imageBlurOverlay}
+          />
         </View>
       }
     </View>

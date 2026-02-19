@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View, FlatList, Image, Alert } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View, FlatList, Image, Alert, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { deletePhoto, fetchPhotos, getAllFilms, Photo } from '../utils/sqlite';
 
@@ -28,6 +28,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
 
   const renderItem = ({ item }: { item: Photo }) => (
     <TouchableOpacity
+      activeOpacity={1}
       onLongPress={async () => {
         Alert.alert('削除', 'この写真を削除しますか？', [
           { text: 'キャンセル', style: 'cancel' },
@@ -46,7 +47,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
       <View style={styles.photoWrap}>
         <Image source={{ uri: item.uri }} style={styles.photo} />
         {item.status === 'undeveloped' && (
-          <BlurView intensity={20} tint="light" style={styles.photoBlurOverlay} />
+          <BlurView
+            intensity={20}
+            tint="light"
+            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            style={styles.photoBlurOverlay}
+          />
         )}
       </View>
       <Text style={styles.metaText}>状態: {item.status === 'developed' ? '現像済み' : '現像前'}</Text>
