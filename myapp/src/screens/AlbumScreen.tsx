@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'android' ? 24 : 18,
+    paddingBottom: Platform.OS === 'android' ? 48 : 36,
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderTopWidth: 1,
     borderTopColor: '#EFEFEF',
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   listWithSelectionActions: {
-    paddingBottom: Platform.OS === 'android' ? 124 : 88,
+    paddingBottom: Platform.OS === 'android' ? 148 : 106,
   },
   listRow: {
     width: '100%',
