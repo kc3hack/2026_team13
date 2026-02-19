@@ -239,7 +239,7 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
         <View style={styles.imageWrap}>
           <Image source={{ uri: image }} style={styles.image} />
           <BlurView
-            intensity={20}
+            intensity={36}
             tint="light"
             experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
             style={styles.imageBlurOverlay}

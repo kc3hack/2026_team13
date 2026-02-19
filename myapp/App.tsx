@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SetupScreen } from './src/screens/SetupScreen';
@@ -52,6 +52,22 @@ export default function App() {
     };
     bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (currentScreen === 'Home') {
+        return true;
+      }
+
+      return false;
+    });
+
+    return () => subscription.remove();
+  }, [currentScreen]);
 
   const handleLogout = async () => {
     await clearUserSettings();

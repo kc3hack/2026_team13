@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -11,9 +11,13 @@ import {
   Platform,
   Modal,
   Pressable,
+  BackHandler,
+  PanResponder,
+  useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 import { deletePhoto, getPhotosByStatus, PhotoWithFilmName } from '../utils/sqlite';
 
 interface AlbumScreenProps {
@@ -28,9 +32,13 @@ const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList
 };
 
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }) => {
+  const { width: screenWidth } = useWindowDimensions();
+  const detailPhotoGap = 16;
+  const detailScrollInterval = screenWidth + detailPhotoGap;
   const [photos, setPhotos] = useState<PhotoWithFilmName[]>([]);
   const [selectedTab, setSelectedTab] = useState<PhotoTab>('developed');
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoWithFilmName | null>(null);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
 
   const load = useCallback(async (status: PhotoTab) => {
@@ -45,6 +53,56 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     [load, selectedTab],
   );
 
+  const closeSelectedPhoto = useCallback(() => {
+    setSelectedPhoto(null);
+    setSelectedPhotoIndex(0);
+  }, []);
+
+  const openActionMenu = useCallback((photo: PhotoWithFilmName) => {
+    setMenuTargetPhoto(photo);
+  }, []);
+
+  const closeActionMenu = useCallback(() => {
+    setMenuTargetPhoto(null);
+  }, []);
+
+  const handleBackLikeAction = useCallback(() => {
+    if (menuTargetPhoto) {
+      closeActionMenu();
+      return true;
+    }
+
+    if (selectedPhoto) {
+      closeSelectedPhoto();
+      return true;
+    }
+
+    onBack();
+    return true;
+  }, [menuTargetPhoto, selectedPhoto, closeActionMenu, closeSelectedPhoto, onBack]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      return handleBackLikeAction();
+    });
+
+    return () => subscription.remove();
+  }, [handleBackLikeAction]);
+
+  const iosEdgeBackPanResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (evt, gestureState) => (
+      Platform.OS === 'ios'
+      && evt.nativeEvent.pageX <= 24
+      && gestureState.dx > 12
+      && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
+    ),
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dx > 50) {
+        handleBackLikeAction();
+      }
+    },
+  }), [handleBackLikeAction]);
+
   const formattedCreatedAt = useMemo(() => {
     if (!menuTargetPhoto?.created_at) {
       return '-';
@@ -56,14 +114,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     return date.toLocaleString('ja-JP');
   }, [menuTargetPhoto]);
 
-  const openActionMenu = (photo: PhotoWithFilmName) => {
-    setMenuTargetPhoto(photo);
-  };
-
-  const closeActionMenu = () => {
-    setMenuTargetPhoto(null);
-  };
-
   const handleDelete = (photo: PhotoWithFilmName) => {
     Alert.alert('削除', 'この写真を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
@@ -74,7 +124,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           await deletePhoto(photo.id);
           closeActionMenu();
           if (selectedPhoto?.id === photo.id) {
-            setSelectedPhoto(null);
+            closeSelectedPhoto();
           }
           await load(selectedTab);
         },
@@ -84,7 +134,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
 
   const handleDevelop = (photo: PhotoWithFilmName) => {
     closeActionMenu();
-    setSelectedPhoto(null);
+    closeSelectedPhoto();
     onGoDarkroom({
       id: photo.id,
       uri: photo.uri,
@@ -93,33 +143,76 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
   };
 
   const handleSaveToDevice = async (photo: PhotoWithFilmName) => {
-    const permission = await MediaLibrary.requestPermissionsAsync();
-    if (permission.status !== 'granted') {
+    const permission = await MediaLibrary.requestPermissionsAsync(true);
+    if (!permission.granted) {
       Alert.alert('保存できません', '写真ライブラリへのアクセス権限が必要です');
       return;
     }
 
+    const resolveSavableUri = async (uri: string): Promise<string> => {
+      const basePath = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+      if (!basePath) {
+        return uri;
+      }
+
+      const targetUri = `${basePath}album_export_${Date.now()}.jpg`;
+
+      try {
+        await FileSystem.copyAsync({ from: uri, to: targetUri });
+      } catch {
+        return uri;
+      }
+
+      try {
+        const copiedInfo = await FileSystem.getInfoAsync(targetUri);
+        if (copiedInfo.exists) {
+          return targetUri;
+        }
+      } catch {
+        return uri;
+      }
+
+      return uri;
+    };
+
     try {
-      await MediaLibrary.saveToLibraryAsync(photo.uri);
+      const savableUri = await resolveSavableUri(photo.uri);
+      await MediaLibrary.saveToLibraryAsync(savableUri);
       Alert.alert('保存完了', '写真を端末に保存しました');
       closeActionMenu();
-    } catch {
-      Alert.alert('保存失敗', '写真の保存に失敗しました');
+    } catch (firstError) {
+      try {
+        const savableUri = await resolveSavableUri(photo.uri);
+        await MediaLibrary.createAssetAsync(savableUri);
+        Alert.alert('保存完了', '写真を端末に保存しました');
+        closeActionMenu();
+      } catch (secondError) {
+        console.log('failed to save photo to device', { firstError, secondError, uri: photo.uri });
+        Alert.alert('保存失敗', '写真の保存に失敗しました');
+      }
     }
   };
 
-  const renderItem = ({ item }: { item: PhotoWithFilmName }) => (
+  const renderItem = ({ item, index }: { item: PhotoWithFilmName; index: number }) => (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={() => setSelectedPhoto(item)}
+      onPress={() => {
+        setSelectedPhoto(item);
+        setSelectedPhotoIndex(index);
+      }}
       onLongPress={() => openActionMenu(item)}
       style={styles.photoItem}
     >
       <View style={styles.photoWrap}>
-        <Image source={{ uri: item.uri }} style={styles.photo} blurRadius={selectedTab === 'undeveloped' ? 10 : 0} />
+        <Image
+          source={{ uri: item.uri }}
+          style={styles.photo}
+          resizeMode="contain"
+          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
+        />
         {selectedTab === 'undeveloped' && (
           <BlurView
-            intensity={Platform.OS === 'ios' ? 8 : 0}
+            intensity={Platform.OS === 'ios' ? 22 : 0}
             tint="default"
             style={styles.photoBlurOverlay}
           />
@@ -131,7 +224,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
           <Text style={styles.backText}>← Back</Text>
@@ -175,10 +268,17 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
         )}
       </View>
 
-      <Modal visible={selectedPhoto !== null} animationType="fade" onRequestClose={() => setSelectedPhoto(null)}>
-        <SafeAreaView style={styles.detailContainer}>
+      <Modal
+        visible={selectedPhoto !== null}
+        animationType="fade"
+        onRequestClose={closeSelectedPhoto}
+      >
+        <SafeAreaView style={styles.detailContainer} {...iosEdgeBackPanResponder.panHandlers}>
           <View style={styles.detailHeader}>
-            <TouchableOpacity style={styles.detailHeaderButton} onPress={() => setSelectedPhoto(null)}>
+            <TouchableOpacity
+              style={styles.detailHeaderButton}
+              onPress={closeSelectedPhoto}
+            >
               <Text style={styles.detailHeaderText}>✕</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -190,21 +290,48 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           </View>
 
           {selectedPhoto && (
-            <View style={styles.detailImageWrap}>
-              <Image
-                source={{ uri: selectedPhoto.uri }}
-                style={styles.detailImage}
-                resizeMode="contain"
-                blurRadius={selectedPhoto.status === 'undeveloped' ? 14 : 0}
-              />
-              {selectedPhoto.status === 'undeveloped' && (
-                <BlurView
-                  intensity={Platform.OS === 'ios' ? 10 : 0}
-                  tint="default"
-                  style={styles.detailBlurOverlay}
-                />
+            <FlatList
+              data={photos}
+              horizontal
+              decelerationRate="fast"
+              snapToInterval={detailScrollInterval}
+              snapToAlignment="start"
+              disableIntervalMomentum
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={p => p.id.toString()}
+              ItemSeparatorComponent={() => <View style={{ width: detailPhotoGap }} />}
+              initialScrollIndex={selectedPhotoIndex}
+              getItemLayout={(_, index) => ({
+                length: detailScrollInterval,
+                offset: detailScrollInterval * index,
+                index,
+              })}
+              onMomentumScrollEnd={(event) => {
+                const nextIndex = Math.round(event.nativeEvent.contentOffset.x / detailScrollInterval);
+                if (nextIndex < 0 || nextIndex >= photos.length) {
+                  return;
+                }
+                setSelectedPhotoIndex(nextIndex);
+                setSelectedPhoto(photos[nextIndex]);
+              }}
+              renderItem={({ item }) => (
+                <View style={[styles.detailImageWrap, { width: screenWidth }]}>
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={styles.detailImage}
+                    resizeMode="contain"
+                    blurRadius={item.status === 'undeveloped' ? 22 : 0}
+                  />
+                  {item.status === 'undeveloped' && (
+                    <BlurView
+                      intensity={Platform.OS === 'ios' ? 22 : 0}
+                      tint="default"
+                      style={styles.detailBlurOverlay}
+                    />
+                  )}
+                </View>
               )}
-            </View>
+            />
           )}
         </SafeAreaView>
       </Modal>

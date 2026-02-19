@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
   PanResponder,
+  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -64,6 +66,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       }
     });
   };
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !menuOpen) {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeMenu();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [menuOpen, closedX]);
 
   const edgePanResponder = useRef(
     PanResponder.create({
