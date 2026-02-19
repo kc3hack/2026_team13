@@ -21,6 +21,7 @@
     "expo-image-picker": "~17.0.10",
     "expo-media-library": "~18.2.1",
     "expo-module-scripts": "^5.0.8",
+    "expo-screen-orientation": "~9.0.8",
     "expo-sensors": "~15.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
