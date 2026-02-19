@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FILM_META } from '../types';
+import { addFilm } from '../utils/sqlite';
 
 interface HomeScreenProps {
   onLogout: () => void;
@@ -29,7 +30,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenAlbum,
   onOpenDarkroom,
 }) => {
-  const { filmInventory, loading, checkForCommits, lastCheckTime } = useGithubCommits();
+  const { filmInventory, loading, checkForCommits, lastCheckTime, refreshInventory } = useGithubCommits();
   const { width } = useWindowDimensions();
   const menuWidth = Math.min(300, width * 0.76);
   const closedX = menuWidth;
@@ -97,8 +98,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   ).current;
 
   const handleLogout = () => {
-    closeMenu();
-    onLogout();
+    Alert.alert(
+      'ログアウト確認',
+      '本当にログアウトしますか？',
+      [
+        {
+          text: 'キャンセル',
+          style: 'cancel',
+        },
+        {
+          text: 'ログアウト',
+          style: 'destructive',
+          onPress: () => {
+            closeMenu();
+            onLogout();
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  const handleAddDebugFilm = async (type: 'mono' | 'vivid' | 'retro') => {
+    try {
+      await addFilm(type);
+      await refreshInventory();
+      const meta = FILM_META[type];
+      Alert.alert('フィルム追加', `${meta.emoji} ${meta.label} を追加しました！`);
+    } catch (error) {
+      console.log('failed to add debug film', error);
+      Alert.alert('エラー', 'フィルムの追加に失敗しました。');
+    }
   };
 
   return (
@@ -170,6 +200,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </View>
             <Text style={styles.aboutTitle}>About</Text>
             <Text style={styles.aboutText}>フィルム体験をテーマにしたコミット連動ダッシュボードです。</Text>
+            <Text style={styles.debugTitle}>デバッグ: フィルム追加</Text>
+            <TouchableOpacity style={styles.debugAction} onPress={() => handleAddDebugFilm('mono')}>
+              <Text style={styles.debugActionText}>⚫ モノクロを追加（所持: {filmInventory.mono}）</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.debugAction} onPress={() => handleAddDebugFilm('vivid')}>
+              <Text style={styles.debugActionText}>🌈 ビビッドを追加（所持: {filmInventory.vivid}）</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.debugAction} onPress={() => handleAddDebugFilm('retro')}>
+              <Text style={styles.debugActionText}>📼 レトロを追加（所持: {filmInventory.retro}）</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.settingsAction} onPress={onOpenSettings}>
               <Text style={styles.settingsActionText}>Settings</Text>
             </TouchableOpacity>
@@ -427,13 +467,36 @@ const styles = StyleSheet.create({
     color: '#555555',
     marginBottom: 24,
   },
+  debugTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2A2A2A',
+    marginBottom: 8,
+  },
+  debugAction: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#DADADA',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  debugActionText: {
+    fontSize: 13,
+    color: '#1E1E1E',
+    fontWeight: '600',
+  },
   settingsAction: {
-    alignSelf: 'flex-start',
+    width: '100%',
+    minHeight: 44,
     borderWidth: 1,
     borderColor: '#DADADA',
     paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   settingsActionText: {
     fontSize: 14,
@@ -442,11 +505,14 @@ const styles = StyleSheet.create({
   },
   logoutAction: {
     marginTop: 10,
+    width: '100%',
+    minHeight: 44,
     borderWidth: 1,
     borderColor: '#E2B5B5',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#FFF7F7',
   },
   logoutActionText: {

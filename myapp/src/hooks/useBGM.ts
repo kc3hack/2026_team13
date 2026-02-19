@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
 import { getBGMVolume, setBGMVolume } from '../utils/storage';
 
-const BGM_FILE = require('../../assets/seishishitauchu.mp3');
+const BGM_FILE = require('../../assets/sounds/静止した宇宙.mp3');
 
 export const useBGM = () => {
   const soundRef = useRef<Audio.Sound | null>(null);

@@ -134,7 +134,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backText}>← ホームに戻る</Text>
+          <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
       </View>
 
@@ -265,8 +265,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backText: {
-    color: '#2B2B2B',
+    color: '#007AFF',
     fontSize: 16,
+    fontWeight: '600',
   },
   tabsWrap: {
     flexDirection: 'row',
