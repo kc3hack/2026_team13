@@ -26,20 +26,69 @@ interface AlbumScreenProps {
 }
 
 type PhotoTab = 'developed' | 'undeveloped';
+type SortOrder = 'newest' | 'oldest' | 'film';
 
 const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList) => {
   React.useEffect(effect, deps);
 };
 
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }) => {
+  const sortOrderOptions: SortOrder[] = ['newest', 'oldest', 'film'];
+  const sortOrderLabelMap: Record<SortOrder, string> = {
+    newest: '新しい順',
+    oldest: '古い順',
+    film: '種類別',
+  };
   const { width: screenWidth } = useWindowDimensions();
   const detailPhotoGap = 16;
   const detailScrollInterval = screenWidth + detailPhotoGap;
   const [photos, setPhotos] = useState<PhotoWithFilmName[]>([]);
   const [selectedTab, setSelectedTab] = useState<PhotoTab>('developed');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoWithFilmName | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
+
+  const sortedPhotos = useMemo(() => {
+    const getPhotoTime = (photo: PhotoWithFilmName): number => {
+      const createdAt = photo.created_at ? new Date(photo.created_at).getTime() : Number.NaN;
+      if (!Number.isNaN(createdAt)) {
+        return createdAt;
+      }
+      return photo.id;
+    };
+
+    return [...photos].sort((a, b) => {
+      const left = getPhotoTime(a);
+      const right = getPhotoTime(b);
+
+      if (sortOrder === 'newest') {
+        return right - left;
+      }
+
+      if (sortOrder === 'oldest') {
+        return left - right;
+      }
+
+      const leftFilmName = a.film_name ?? '';
+      const rightFilmName = b.film_name ?? '';
+      const byFilmName = leftFilmName.localeCompare(rightFilmName, 'ja');
+
+      if (byFilmName !== 0) {
+        return byFilmName;
+      }
+
+      return right - left;
+    });
+  }, [photos, sortOrder]);
+
+  const rotateSortOrder = useCallback(() => {
+    setSortOrder((prev) => {
+      const currentIndex = sortOrderOptions.indexOf(prev);
+      const nextIndex = (currentIndex + 1) % sortOrderOptions.length;
+      return sortOrderOptions[nextIndex];
+    });
+  }, [sortOrderOptions]);
 
   const load = useCallback(async (status: PhotoTab) => {
     const list = await getPhotosByStatus(status);
@@ -251,7 +300,13 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
 
       <View style={styles.content}>
         <Text style={styles.title}>{selectedTab === 'developed' ? '現像済みアルバム' : '現像待ちアルバム'}</Text>
-        {photos.length === 0 ? (
+        <TouchableOpacity
+          style={styles.sortButton}
+          onPress={rotateSortOrder}
+        >
+          <Text style={styles.sortButtonText}>{sortOrderLabelMap[sortOrder]}</Text>
+        </TouchableOpacity>
+        {sortedPhotos.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyText}>
               {selectedTab === 'developed' ? '現像済みの写真はありません' : '現像待ちの写真はありません'}
@@ -259,7 +314,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           </View>
         ) : (
           <FlatList
-            data={photos}
+            data={sortedPhotos}
             keyExtractor={p => p.id.toString()}
             renderItem={renderItem}
             numColumns={3}
@@ -291,7 +346,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
 
           {selectedPhoto && (
             <FlatList
-              data={photos}
+              data={sortedPhotos}
               horizontal
               decelerationRate="fast"
               snapToInterval={detailScrollInterval}
@@ -308,11 +363,11 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
               })}
               onMomentumScrollEnd={(event) => {
                 const nextIndex = Math.round(event.nativeEvent.contentOffset.x / detailScrollInterval);
-                if (nextIndex < 0 || nextIndex >= photos.length) {
+                if (nextIndex < 0 || nextIndex >= sortedPhotos.length) {
                   return;
                 }
                 setSelectedPhotoIndex(nextIndex);
-                setSelectedPhoto(photos[nextIndex]);
+                setSelectedPhoto(sortedPhotos[nextIndex]);
               }}
               renderItem={({ item }) => (
                 <View style={[styles.detailImageWrap, { width: screenWidth }]}>
@@ -435,6 +490,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1E1E1E',
     letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  sortButton: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  sortButtonText: {
+    fontSize: 12,
+    color: '#3A3A3A',
+    fontWeight: '600',
   },
   list: {
     marginTop: 20,
