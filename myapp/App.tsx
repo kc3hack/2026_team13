@@ -95,6 +95,10 @@ export default function App() {
               return (
                 <AlbumScreen
                   onBack={() => setCurrentScreen('Home')}
+                  onGoDarkroom={(photo) => {
+                    setPendingDevelopPhoto(photo);
+                    setCurrentScreen('Darkroom');
+                  }}
                 />
               );
             case 'Darkroom':
