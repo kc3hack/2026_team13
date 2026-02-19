@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
@@ -168,27 +168,6 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
     }
   };
 
-  const _pickImage = async (): Promise<void> => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert("エラー", "カメラロールへのアクセス権限が必要です。");
-      return;
-    }
-
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    console.log(result);
-
-    if (!result.canceled) {
-      await saveAndAskDevelop(result.assets[0].uri);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
@@ -241,17 +220,14 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       </View>
 
       <View style={styles.buttonContainer}>
-        <Button
-          title="Pick an image from camera roll"
-          onPress={_pickImage}
-          disabled={saving}
-        />
-        <View style={styles.separator} />
-        <Button
-          title="Enjoy Camera!"
+        <TouchableOpacity
+          style={[styles.cameraButton, saving && styles.cameraButtonDisabled]}
           onPress={_camera}
           disabled={saving}
-        />
+          activeOpacity={0.85}
+        >
+          <Text style={styles.cameraButtonText}>📷 Enjoy Camera!</Text>
+        </TouchableOpacity>
       </View>
 
       {saving && <ActivityIndicator size="small" color="#007AFF" />}
@@ -348,7 +324,36 @@ const styles = StyleSheet.create({
     color: '#A8A8A8',
   },
   buttonContainer: {
+    width: '100%',
+    paddingHorizontal: 28,
     marginBottom: 20,
+  },
+  cameraButton: {
+    width: '100%',
+    minHeight: 64,
+    borderRadius: 18,
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2B2B2B',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  cameraButtonDisabled: {
+    backgroundColor: '#707070',
+    borderColor: '#7D7D7D',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  cameraButtonText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   imageWrap: {
     position: 'relative',
@@ -366,7 +371,5 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
   },
-  separator: {
-    height: 10,
-  }
+  
 });
