@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
@@ -158,6 +157,19 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       Alert.alert('フィルム未選択', '利用するフィルムを選択してください。');
       return;
     }
+    const selectedFilmId = filmIdByType[selectedFilmType];
+    if (!selectedFilmId) {
+      Alert.alert('エラー', '選択したフィルム情報が見つかりません。');
+      return;
+    }
+
+    if (filmInventory[selectedFilmType] <= 0) {
+      Alert.alert('フィルム不足', 'このフィルムは所持していません。');
+      return;
+    }
+
+    onGoCamera(selectedFilmType, selectedFilmId);
+  };
 
   return (
     <View style={styles.container}>
