@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View, FlatList, Image, Alert } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View, FlatList, Image, Alert, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { deletePhoto, fetchPhotos, getAllFilms, Photo } from '../utils/sqlite';
 
 interface AlbumScreenProps {
@@ -27,6 +28,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
 
   const renderItem = ({ item }: { item: Photo }) => (
     <TouchableOpacity
+      activeOpacity={1}
       onLongPress={async () => {
         Alert.alert('削除', 'この写真を削除しますか？', [
           { text: 'キャンセル', style: 'cancel' },
@@ -42,7 +44,17 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
       }}
       style={styles.photoItem}
     >
-      <Image source={{ uri: item.uri }} style={styles.photo} />
+      <View style={styles.photoWrap}>
+        <Image source={{ uri: item.uri }} style={styles.photo} />
+        {item.status === 'undeveloped' && (
+          <BlurView
+            intensity={20}
+            tint="light"
+            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            style={styles.photoBlurOverlay}
+          />
+        )}
+      </View>
       <Text style={styles.metaText}>状態: {item.status === 'developed' ? '現像済み' : '現像前'}</Text>
       <Text style={styles.metaText}>フィルム: {filmNameById[item.film_id] ?? '不明'}</Text>
     </TouchableOpacity>
@@ -107,11 +119,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     marginBottom: 12,
   },
-  photo: {
+  photoWrap: {
+    position: 'relative',
     width: 100,
     height: 100,
     marginBottom: 4,
     borderRadius: 8,
+    overflow: 'hidden',
+  },
+  photo: {
+    width: 100,
+    height: 100,
+  },
+  photoBlurOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
   },
   metaText: {
     fontSize: 10,

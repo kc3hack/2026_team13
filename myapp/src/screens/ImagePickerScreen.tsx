@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Button, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
 import { addFilm, addPhoto, consumeFilm, getAllFilms, getFilmInventory, initDatabase } from '../utils/sqlite';
 
@@ -231,7 +232,15 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       {saving && <ActivityIndicator size="small" color="#007AFF" />}
       
       {image &&
-        <Image source={{ uri: image }} style={styles.image} />
+        <View style={styles.imageWrap}>
+          <Image source={{ uri: image }} style={styles.image} />
+          <BlurView
+            intensity={20}
+            tint="light"
+            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            style={styles.imageBlurOverlay}
+          />
+        </View>
       }
     </View>
   );
@@ -316,11 +325,21 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginBottom: 20,
   },
-  image: {
+  imageWrap: {
+    position: 'relative',
     width: 200,
     height: 200,
     marginTop: 20,
     borderRadius: 10,
+    overflow: 'hidden',
+  },
+  image: {
+    width: 200,
+    height: 200,
+  },
+  imageBlurOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
   },
   separator: {
     height: 10,
