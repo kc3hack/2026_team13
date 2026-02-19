@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Button, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
 import { addFilm, addPhoto, consumeFilm, getAllFilms, getFilmInventory, initDatabase } from '../utils/sqlite';
