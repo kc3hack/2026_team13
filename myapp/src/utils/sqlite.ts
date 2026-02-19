@@ -119,6 +119,24 @@ export const updatePhotoStatus = async (id: number, status: 'undeveloped' | 'dev
   await db.runAsync('UPDATE photos SET status = ? WHERE id = ?;', [status, id]);
 };
 
+export const updatePhotoUri = async (id: number, uri: string): Promise<void> => {
+  await db.runAsync('UPDATE photos SET uri = ? WHERE id = ?;', [uri, id]);
+};
+
+export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmType | null> => {
+  const row = await db.getFirstAsync<{ effect_type: string }>(
+    'SELECT effect_type FROM films WHERE id = ?;',
+    [filmId],
+  );
+
+  const effect = row?.effect_type?.toLowerCase();
+  if (effect === 'mono' || effect === 'vivid' || effect === 'retro') {
+    return effect;
+  }
+
+  return null;
+};
+
 // 全件取得
 export const fetchPhotos = async (): Promise<Photo[]> => {
   return db.getAllAsync<Photo>(

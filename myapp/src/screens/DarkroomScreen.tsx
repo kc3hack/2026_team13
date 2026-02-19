@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'; //reactのコンポーネントをインポート
-import { Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState} from 'react-native'; //react nativeのコンポーネントをインポート
+import { ActivityIndicator, Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState} from 'react-native'; //react nativeのコンポーネントをインポート
 import { Audio } from 'expo-av'; //expoのAudioをインポート
-import { getPhotosByStatus, updatePhotoStatus } from '../utils/sqlite';
+import { getFilmEffectTypeById, getPhotosByStatus, updatePhotoStatus, updatePhotoUri } from '../utils/sqlite';
 import * as MediaLibrary from 'expo-media-library';
 import { Modal } from 'react-native';
+import { applyFilmEffectToPhoto } from '../utils/photoEffects';
 
 // 現像処理の画面
 interface DarkroomScreenProps {
@@ -16,72 +17,21 @@ interface DarkroomScreenProps {
 }
 
 // 現像に必要な時間（秒）[初期値=1時間] - 開発中は短くしてもOK
-const INITIAL_SECONDS = 10;
+const INITIAL_SECONDS = 60;
 
 // 現像処理の画面コンポーネント
 export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo }) => {
   const [developingPhoto, setDevelopingPhoto] = useState<DarkroomScreenProps['photo']>(photo);
+  const [isPreparing, setIsPreparing] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(INITIAL_SECONDS);
   const hasShownSuccessAlert = useRef(false);
   const hasUpdatedStatus = useRef(false);
   const waterSoundRef = useRef<Audio.Sound | null>(null);
+  const cancelProcessingRef = useRef(false);
+  const isLeavingDarkroomRef = useRef(false);
   const [showModal, setShowModal] = useState(false);
-
-  useEffect(() => {
-    let isActive = true; // クリーンアップのためのフラグ
-
-    const resolveDevelopingPhoto = async () => {
-      if (photo) {
-        setDevelopingPhoto(photo);
-        return;
-      }
-
-      try {
-        const undeveloped = await getPhotosByStatus('undeveloped');
-        if (!isActive) {
-          return;
-        }
-
-        if (undeveloped.length > 0) {
-          const latest = undeveloped[0];
-          setDevelopingPhoto({
-            id: latest.id,
-            uri: latest.uri,
-            filmId: latest.film_id,
-          });
-        } else {
-          setDevelopingPhoto(null);
-        }
-      } catch (error) {
-        console.log('failed to load undeveloped photo', error);
-      }
-    };
-
-    void resolveDevelopingPhoto();
-
-    return () => {
-      isActive = false;
-    };
-  }, [photo]);
-
-  // アプリがバックグラウンドに移行した場合の処理
-  useEffect(() => {
-  let wasBackground = false; // アプリがバックグラウンドに移行したかどうかのフラグ
-
-  const subscription = AppState.addEventListener("change", (nextState) => {
-    if (nextState === "background") {
-      wasBackground = true;
-    }
-
-    if (nextState === "active" && wasBackground) {
-      wasBackground = false;
-      Alert.alert("現像失敗", "アプリを離れたため現像が中断されました");
-      onBack(); // ホーム画面へ戻る
-    }
-  });
-
-  return () => subscription.remove();
-  }, [onBack]);
+  const [isProcessingFilter, setIsProcessingFilter] = useState(false);
+  const [isFilterProcessingDone, setIsFilterProcessingDone] = useState(false);
 
   const stopAndUnloadWaterSound = useCallback(async () => {
     const currentSound = waterSoundRef.current;
@@ -105,21 +55,99 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     }
   }, []);
 
+  const leaveDarkroom = useCallback(() => {
+    isLeavingDarkroomRef.current = true;
+    cancelProcessingRef.current = true;
+    hasShownSuccessAlert.current = true;
+    hasUpdatedStatus.current = true;
+    setIsProcessingFilter(false);
+    void stopAndUnloadWaterSound();
+    onBack();
+  }, [onBack, stopAndUnloadWaterSound]);
+
+  useEffect(() => {
+    let isActive = true; // クリーンアップのためのフラグ
+    setIsPreparing(true);
+
+    const resolveDevelopingPhoto = async () => {
+      if (photo) {
+        setDevelopingPhoto(photo);
+        if (isActive) {
+          setIsPreparing(false);
+        }
+        return;
+      }
+
+      try {
+        const undeveloped = await getPhotosByStatus('undeveloped');
+        if (!isActive) {
+          return;
+        }
+
+        if (undeveloped.length > 0) {
+          const latest = undeveloped[0];
+          setDevelopingPhoto({
+            id: latest.id,
+            uri: latest.uri,
+            filmId: latest.film_id,
+          });
+        } else {
+          setDevelopingPhoto(null);
+        }
+      } catch (error) {
+        console.log('failed to load undeveloped photo', error);
+      } finally {
+        if (isActive) {
+          setIsPreparing(false);
+        }
+      }
+    };
+
+    void resolveDevelopingPhoto();
+
+    return () => {
+      isActive = false;
+    };
+  }, [photo]);
+
+  // アプリがバックグラウンドに移行した場合の処理
+  useEffect(() => {
+    let wasBackground = false; // アプリがバックグラウンドに移行したかどうかのフラグ
+
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "background") {
+        wasBackground = true;
+      }
+
+      if (nextState === "active" && wasBackground) {
+        wasBackground = false;
+        if (isLeavingDarkroomRef.current) {
+          return;
+        }
+
+        Alert.alert("現像失敗", "アプリを離れたため現像が中断されました");
+        leaveDarkroom();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [leaveDarkroom]);
+
   const handleSave = async () => {
-  if (!developingPhoto) return;
+    if (!developingPhoto) return;
 
-  const { status } = await MediaLibrary.requestPermissionsAsync();
-  if (status !== 'granted') {
-    Alert.alert("保存できません", "写真へのアクセス権限がありません");
-    return;
-  }
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert("保存できません", "写真へのアクセス権限がありません");
+      return;
+    }
 
-  try {
-    await MediaLibrary.saveToLibraryAsync(developingPhoto.uri);
-    Alert.alert("保存完了", "写真をカメラロールに保存しました");
-  } catch (error) {
-    Alert.alert("保存エラー", "写真の保存に失敗しました");
-  }
+    try {
+      await MediaLibrary.saveToLibraryAsync(developingPhoto.uri);
+      Alert.alert("保存完了", "写真をカメラロールに保存しました");
+    } catch (error) {
+      Alert.alert("保存エラー", "写真の保存に失敗しました");
+    }
   };
 
   useEffect(() => {
@@ -159,15 +187,79 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       return;
     }
 
+    const targetPhotoId = developingPhoto.id;
+    const startedAt = Date.now();
+
+    setRemainingSeconds(INITIAL_SECONDS);
+
     const timer = setInterval(() => {
-      setRemainingSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const next = Math.max(0, INITIAL_SECONDS - elapsed);
+      setRemainingSeconds(next);
+    }, 250);
 
     return () => clearInterval(timer);
-  }, [developingPhoto]);
+  }, [developingPhoto?.id]);
 
   useEffect(() => {
-    if (remainingSeconds === 0 && !hasShownSuccessAlert.current) {
+    if (!developingPhoto) {
+      setIsFilterProcessingDone(true);
+      setIsProcessingFilter(false);
+      return;
+    }
+
+    const targetPhoto = developingPhoto;
+
+    let cancelled = false;
+    cancelProcessingRef.current = false;
+
+    setIsProcessingFilter(true);
+    setIsFilterProcessingDone(false);
+
+    void (async () => {
+      try {
+        const effectType = await getFilmEffectTypeById(targetPhoto.filmId);
+        const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
+          shouldCancel: () => cancelled || cancelProcessingRef.current || isLeavingDarkroomRef.current,
+        });
+
+        if (cancelled || isLeavingDarkroomRef.current) {
+          return;
+        }
+
+        if (processedUri !== targetPhoto.uri) {
+          await updatePhotoUri(targetPhoto.id, processedUri);
+          if (!cancelled && !isLeavingDarkroomRef.current) {
+            setDevelopingPhoto((prev) => {
+              if (!prev || prev.id !== targetPhoto.id) {
+                return prev;
+              }
+              return { ...prev, uri: processedUri };
+            });
+          }
+        }
+      } catch (error) {
+        console.log('failed to process photo in darkroom', error);
+      } finally {
+        if (!cancelled && !isLeavingDarkroomRef.current) {
+          setIsFilterProcessingDone(true);
+          setIsProcessingFilter(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cancelProcessingRef.current = true;
+    };
+  }, [developingPhoto?.id]);
+
+  useEffect(() => {
+    if (isLeavingDarkroomRef.current) {
+      return;
+    }
+
+    if (remainingSeconds === 0 && isFilterProcessingDone && !hasShownSuccessAlert.current) {
       void stopAndUnloadWaterSound();
       hasShownSuccessAlert.current = true;
       if (developingPhoto && !hasUpdatedStatus.current) {
@@ -179,12 +271,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       Alert.alert('現像完了', '現像に成功しました！', [
         {
           text: "OK",
-          onPress: () => setShowModal(true), // ← ポップアップを開く
+          onPress: () => setShowModal(true),
         },
       ]);
 
     }
-  }, [developingPhoto, remainingSeconds, stopAndUnloadWaterSound]);
+  }, [developingPhoto, isFilterProcessingDone, remainingSeconds, stopAndUnloadWaterSound]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
@@ -197,16 +289,38 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
   }, [remainingSeconds]);
 
   const handleBackPress = () => {
+    const message = isProcessingFilter
+      ? 'フィルム処理を中断して暗室を出ます。よろしいですか？'
+      : '暗室を出るとタイマーはリセットされます。よろしいですか？';
+
     Alert.alert(
       '暗室を終了',
-      '暗室を出るとタイマーはリセットされます。よろしいですか？',
+      message,
       [
         { text: 'キャンセル', style: 'cancel' },
-        { text: '戻る', style: 'destructive', onPress: onBack },
+        {
+          text: '戻る',
+          style: 'destructive',
+          onPress: leaveDarkroom,
+        },
       ],
       { cancelable: true },
     );
   };
+
+  if (isPreparing) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.glowLarge} />
+        <View style={styles.glowSmall} />
+
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#8B0000" />
+          <Text style={styles.loadingText}>暗室を準備中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -229,41 +343,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       <View style={styles.timerWrap}>
         <Text style={styles.timerLabel}>DEVELOPING</Text>
         <Text style={styles.timerText}>{displayTime}</Text>
+        {developingPhoto && isProcessingFilter && <Text style={styles.processingText}>フィルム処理中...</Text>}
+        {developingPhoto && remainingSeconds === 0 && !isFilterProcessingDone && <Text style={styles.processingText}>現像仕上げ中...</Text>}
+        {developingPhoto && !isProcessingFilter && isFilterProcessingDone && <Text style={styles.processingText}>フィルム処理完了</Text>}
       </View>
-      
-      {/* ▼▼ デバッグ用フィルム追加パネル ▼▼ */}
-<View style={{ marginTop: 30, padding: 16, backgroundColor: '#222', borderRadius: 12 }}>
-  <Text style={{ color: '#fff', fontSize: 16, marginBottom: 12, fontWeight: '700' }}>
-    🎞 デバッグ：フィルム追加
-  </Text>
-
-  {(['mono', 'vivid', 'retro'] as const).map((type) => (
-    <TouchableOpacity
-      key={type}
-      style={{
-        backgroundColor: '#444',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 8,
-      }}
-      onPress={async () => {
-        const { addFilm } = require('../utils/sqlite');
-        const { FILM_META } = require('../types');
-        const meta = FILM_META[type];
-
-        await addFilm(type);
-        Alert.alert('フィルム追加', `${meta.emoji} ${meta.label} を追加しました！`);
-      }}
-    >
-      <Text style={{ color: '#fff', fontSize: 15 }}>
-        {type === 'mono' && '⚫ モノクロを追加'}
-        {type === 'vivid' && '🌈 ビビッドを追加'}
-        {type === 'retro' && '📼 レトロを追加'}
-      </Text>
-    </TouchableOpacity>
-  ))}
-</View>
-{/* ▲▲ デバッグ用フィルム追加パネル ▲▲ */}
 
       <Modal
   visible={showModal}
@@ -377,6 +460,24 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(255, 255, 255, 0.6)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 12,
+  },
+  processingText: {
+    marginTop: 10,
+    color: '#C5B7B7',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  loadingText: {
+    color: '#E8D3D3',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
 
   modalOverlay: {
