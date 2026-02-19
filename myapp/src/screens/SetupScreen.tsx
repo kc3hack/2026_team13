@@ -1,5 +1,5 @@
 // src/screens/SetupScreen.tsx
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,29 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ScrollView,
+  Animated,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Image,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const PARALLAX_FACTOR = 0.3;
+const PARALLAX_MAX_SCROLL = 500;
+const PARALLAX_OFFSET = PARALLAX_MAX_SCROLL * PARALLAX_FACTOR;
+
+// Asset imports
+const BG_IMAGE = require('../../assets/images/KC3_Devit_background.png');
+const LOGO_IMAGE = require('../../assets/images/KC3_Devit_logo.png');
+const BUTTON_IMAGE = require('../../assets/images/KC3_Devit_button.png');
+const FILMS_IMAGE = require('../../assets/images/KC3_Devit_films_long.png');
 
 interface SetupScreenProps {
   onComplete: () => void;
@@ -26,6 +40,13 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const bgTranslateY = scrollY.interpolate({
+    inputRange: [0, PARALLAX_MAX_SCROLL],
+    outputRange: [-PARALLAX_OFFSET, 0],
+    extrapolate: 'clamp',
+  });
 
   const handleContinue = async () => {
     if (!username.trim()) {
@@ -60,218 +81,281 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.container}>
+      {/* Parallax background */}
+      <Animated.Image
+        source={BG_IMAGE}
+        style={[
+          styles.backgroundImage,
+          { transform: [{ translateY: bgTranslateY }] },
+        ]}
+        resizeMode="cover"
+      />
+
+      {/* Film strip overlays */}
+      <Image source={FILMS_IMAGE} style={styles.filmsTop} resizeMode="cover" />
+
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <Text style={styles.appIcon}>📷</Text>
-          <Text style={styles.appName}>Film Developer</Text>
-          <Text style={styles.tagline}>
-            コミットして、フィルムを集めよう。
-          </Text>
-        </View>
+        <Animated.ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={16}
+        >
+            {/* Hero */}
+            <View style={styles.hero}>
+              <Image source={LOGO_IMAGE} style={styles.logo} resizeMode="contain" />
+              <Text style={styles.tagline}>あなたのコミットをフィルムに。</Text>
+            </View>
 
-        {/* Form */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>GitHubアカウントを連携</Text>
-          <Text style={styles.cardDescription}>
-            コミットを検出してフィルムを付与するために、{'\n'}
-            GitHubの情報を入力してください。
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>GitHub Username <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              value={username}
-              onChangeText={setUsername}
-              placeholder="e.g. octocat"
-              placeholderTextColor="#aaa"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Personal Access Token <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              value={token}
-              onChangeText={setToken}
-              placeholder="github_pat_..."
-              placeholderTextColor="#aaa"
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Text style={styles.helperText}>
-              Fine-grained PAT — Contents (Read-only) 権限が必要です。{' '}
-              <Text
-                style={styles.linkText}
-                onPress={() => Linking.openURL('https://github.com/settings/personal-access-tokens')}
-              >
-                トークンを発行する →
+            {/* Form Section */}
+            <View style={styles.formSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionHeaderText}>GitHubアカウントを連携</Text>
+              </View>
+              <Text style={styles.sectionDescription}>
+                コミットを検出してフィルムを付与するために、{'\n'}
+                GitHubの情報を入力してください。
               </Text>
-            </Text>
-          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Git Email <Text style={styles.optional}>(任意)</Text></Text>
-            <TextInput
-              style={styles.input}
-              value={gitEmail}
-              onChangeText={setGitEmail}
-              placeholder="email@example.com"
-              placeholderTextColor="#aaa"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-            />
-            <Text style={styles.helperText}>
-              コミットの検出精度が向上します。
-            </Text>
-          </View>
-        </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>GitHub Username</Text>
+                <TextInput
+                  style={styles.input}
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholder="e.g. octocat"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
 
-        {/* Button inside ScrollView so it's always reachable */}
-        <View style={styles.buttonWrap}>
-          <TouchableOpacity
-            style={[styles.continueBtn, loading && styles.disabledBtn]}
-            onPress={handleContinue}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.continueBtnText}>はじめる</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Personal Access Token</Text>
+                <Text style={styles.helperText}>
+                  Fine-grained PATを入力してください。生成の際、Contents（Read-only）{'\n'}
+                  権限が必要です。{' '}
+                  <Text
+                    style={styles.linkText}
+                    onPress={() =>
+                      Linking.openURL(
+                        'https://github.com/settings/personal-access-tokens'
+                      )
+                    }
+                  >
+                    トークンを発行する→
+                  </Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={token}
+                  onChangeText={setToken}
+                  placeholder="github_pat_..."
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Git Email <Text style={styles.optional}>（任意）</Text>
+                </Text>
+                <Text style={styles.helperText}>コミットの検出精度が向上します。</Text>
+                <TextInput
+                  style={styles.input}
+                  value={gitEmail}
+                  onChangeText={setGitEmail}
+                  placeholder="email@example.com"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                />
+              </View>
+            </View>
+
+            {/* Button */}
+            <View style={styles.buttonWrap}>
+              <TouchableOpacity
+                onPress={handleContinue}
+                disabled={loading}
+                activeOpacity={0.8}
+                style={styles.buttonTouchable}
+              >
+                {loading ? (
+                  <View style={styles.loadingOverlay}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  </View>
+                ) : (
+                  <Image
+                    source={BUTTON_IMAGE}
+                    style={styles.buttonImage}
+                    resizeMode="contain"
+                  />
+                )}
+              </TouchableOpacity>
+            </View>
+        </Animated.ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Bottom film strip */}
+      <Image source={FILMS_IMAGE} style={styles.filmsBottom} resizeMode="cover" />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT + PARALLAX_OFFSET,
+  },
+  keyboardAvoid: {
+    flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
+    paddingHorizontal: 28,
+    paddingTop: 80,
+    paddingBottom: 100,
     flexGrow: 1,
+  },
+
+  /* ── Film strips ── */
+  filmsTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: SCREEN_WIDTH,
+    height: 50,
+    zIndex: 10,
+    opacity: 0.85,
+  },
+  filmsBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: SCREEN_WIDTH,
+    height: 50,
+    zIndex: 10,
+    opacity: 0.85,
   },
 
   /* ── Hero ── */
   hero: {
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 28,
+    marginTop: 10,
   },
-  appIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  appName: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    letterSpacing: 1,
+  logo: {
+    width: SCREEN_WIDTH * 0.55,
+    height: 100,
     marginBottom: 8,
   },
   tagline: {
     fontSize: 15,
-    color: '#777',
+    color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
     lineHeight: 22,
+    letterSpacing: 1,
   },
 
-  /* ── Card ── */
-  card: {
-    backgroundColor: '#FAFAFA',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#ECECEC',
+  /* ── Form Section ── */
+  formSection: {
+    marginBottom: 8,
   },
-  cardTitle: {
-    fontSize: 18,
+  sectionHeader: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  sectionHeaderText: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 6,
+    color: '#FFFFFF',
+    letterSpacing: 1,
   },
-  cardDescription: {
+  sectionDescription: {
     fontSize: 13,
-    color: '#888',
+    color: 'rgba(255,255,255,0.8)',
     lineHeight: 20,
     marginBottom: 20,
   },
 
   /* ── Form ── */
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     marginBottom: 6,
-    color: '#333',
-  },
-  required: {
-    color: '#E55',
-    fontWeight: '400',
+    color: '#FFFFFF',
   },
   optional: {
-    color: '#999',
+    color: 'rgba(255,255,255,0.6)',
     fontWeight: '400',
-    fontSize: 12,
+    fontSize: 13,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
+    borderColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 14,
     fontSize: 15,
-    color: '#1A1A1A',
+    color: '#FFFFFF',
   },
   helperText: {
     fontSize: 12,
-    color: '#999',
-    marginTop: 5,
+    color: 'rgba(255,255,255,0.65)',
+    marginBottom: 6,
+    lineHeight: 18,
   },
   linkText: {
-    color: '#007AFF',
+    color: '#FFB347',
     textDecorationLine: 'underline',
   },
 
   /* ── Button ── */
   buttonWrap: {
-    marginTop: 28,
+    marginTop: 20,
+    alignItems: 'center',
     paddingBottom: 8,
   },
-  continueBtn: {
-    backgroundColor: '#1A1A1A',
-    paddingVertical: 16,
-    borderRadius: 12,
+  buttonTouchable: {
+    width: SCREEN_WIDTH * 0.65,
+    height: 64,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  continueBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+  buttonImage: {
+    width: '100%',
+    height: '100%',
   },
-  disabledBtn: {
-    opacity: 0.6,
+  loadingOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

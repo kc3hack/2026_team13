@@ -95,6 +95,10 @@ export default function App() {
               return (
                 <AlbumScreen
                   onBack={() => setCurrentScreen('Home')}
+                  onGoDarkroom={(photo) => {
+                    setPendingDevelopPhoto(photo);
+                    setCurrentScreen('Darkroom');
+                  }}
                 />
               );
             case 'Darkroom':
@@ -108,6 +112,16 @@ export default function App() {
               return null;
       }
   };
+
+  // SetupScreen is rendered full-screen (outside SafeAreaView)
+  if (currentScreen === 'Setup') {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        {renderContent()}
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

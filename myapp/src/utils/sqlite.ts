@@ -2,6 +2,9 @@ import { openDatabaseSync, SQLiteDatabase } from 'expo-sqlite';
 import { FilmInventory, FilmType, PhotoRecord, RewardFilmType } from '../types';
 
 export type Photo = PhotoRecord;
+export interface PhotoWithFilmName extends PhotoRecord {
+  film_name: string | null;
+}
 
 // v11+ は openDatabaseAsync/openDatabaseSync が提供される
 const db: SQLiteDatabase = openDatabaseSync('mydb.db');
@@ -63,6 +66,8 @@ export const initDatabase = async (): Promise<void> => {
     }
   }
 
+  await db.runAsync("UPDATE photos SET created_at = datetime('now', 'localtime') WHERE created_at IS NULL OR created_at = ''; ");
+
   await ensureFilmsSeeded();
 
   // 3種のフィルム行が存在しなければ初期挿入
@@ -87,15 +92,25 @@ export const addPhoto = async (
   status: 'undeveloped' | 'developed' = 'undeveloped',
 ): Promise<number> => {
   const result = await db.runAsync(
-    'INSERT INTO photos (uri, film_id, status) VALUES (?, ?, ?);',
+    "INSERT INTO photos (uri, film_id, status, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'));",
     [uri, filmId, status],
   );
   return result.lastInsertRowId;
 };
 
-export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Promise<PhotoRecord[]> => {
-  return db.getAllAsync<PhotoRecord>(
-    'SELECT id, uri, film_id, status, created_at FROM photos WHERE status = ? ORDER BY datetime(created_at) DESC, id DESC;',
+export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Promise<PhotoWithFilmName[]> => {
+  return db.getAllAsync<PhotoWithFilmName>(
+    `SELECT
+      p.id,
+      p.uri,
+      p.film_id,
+      p.status,
+      COALESCE(p.created_at, datetime('now', 'localtime')) AS created_at,
+      f.name AS film_name
+    FROM photos p
+    LEFT JOIN films f ON p.film_id = f.id
+    WHERE p.status = ?
+    ORDER BY datetime(p.created_at) DESC, p.id DESC;`,
     [status],
   );
 };
