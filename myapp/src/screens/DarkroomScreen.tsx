@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState} from 'react-native'; //react nativeのコンポーネントをインポート
 import { Audio } from 'expo-av'; //expoのAudioをインポート
 import { getPhotosByStatus, updatePhotoStatus } from '../utils/sqlite';
-//import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library';
 import { Modal } from 'react-native';
 import { StatusBar } from 'react-native';
 // 現像処理の画面
@@ -105,7 +105,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     }
   }, []);
 
-  /*const handleSave = async () => {
+  const handleSave = async () => {
   if (!developingPhoto) return;
 
   const { status } = await MediaLibrary.requestPermissionsAsync();
@@ -120,7 +120,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
   } catch (error) {
     Alert.alert("保存エラー", "写真の保存に失敗しました");
   }
-  };*/
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -281,7 +281,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
         />
       )}
 
-      <TouchableOpacity style={styles.saveButton} /*onPress={handleSave}*/>
+      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
         <Text style={styles.saveButtonText}>保存する</Text>
       </TouchableOpacity>
 
