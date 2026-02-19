@@ -1,4 +1,4 @@
-import { openDatabaseSync, SQLiteDatabase } from 'expo-sqlite';
+import { openDatabaseAsync, SQLiteDatabase } from 'expo-sqlite';
 import { FilmInventory, FilmType, PhotoRecord, RewardFilmType } from '../types';
 
 export type Photo = PhotoRecord;
@@ -7,17 +7,63 @@ export interface PhotoWithFilmName extends PhotoRecord {
 }
 
 // v11+ は openDatabaseAsync/openDatabaseSync が提供される
-const db: SQLiteDatabase = openDatabaseSync('mydb.db');
+let dbPromise: Promise<SQLiteDatabase> | null = null;
+let isDatabaseInitialized = false;
+let databaseInitPromise: Promise<void> | null = null;
 
-const ensureFilmsSeeded = async (): Promise<void> => {
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS films (
+const getDb = async (): Promise<SQLiteDatabase> => {
+  if (!dbPromise) {
+    dbPromise = openDatabaseAsync('mydb.db').catch((error) => {
+      dbPromise = null;
+      throw error;
+    });
+  }
+  return dbPromise;
+};
+
+const resetDatabaseState = (): void => {
+  dbPromise = null;
+  databaseInitPromise = null;
+  isDatabaseInitialized = false;
+};
+
+const isRecoverableNativeDbError = (error: unknown): boolean => {
+  const message = error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error);
+  return (
+    message.includes('NativeDatabase.prepareAsync')
+    || message.includes('NativeDatabase.execAsync')
+    || message.includes('NullPointerException')
+  );
+};
+
+const withDatabaseRetry = async <T>(operation: (db: SQLiteDatabase) => Promise<T>): Promise<T> => {
+  await initDatabase();
+
+  try {
+    const db = await getDb();
+    return await operation(db);
+  } catch (error) {
+    if (!isRecoverableNativeDbError(error)) {
+      throw error;
+    }
+
+    console.warn('[sqlite] recoverable native DB error. retrying once...', error);
+    resetDatabaseState();
+    await initDatabase();
+    const db = await getDb();
+    return operation(db);
+  }
+};
+
+const ensureFilmsSeeded = async (db: SQLiteDatabase): Promise<void> => {
+  await db.runAsync(
+    `CREATE TABLE IF NOT EXISTS films (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT,
       effect_type TEXT NOT NULL
-    );
-  `);
+    );`
+  );
 
   await db.runAsync(
     `INSERT OR IGNORE INTO films (id, name, description, effect_type) VALUES
@@ -27,25 +73,28 @@ const ensureFilmsSeeded = async (): Promise<void> => {
   );
 };
 
-// テーブル初期化
-export const initDatabase = async (): Promise<void> => {
-  await ensureFilmsSeeded();
+const initializeDatabaseInternal = async (): Promise<void> => {
+  const db = await getDb();
 
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS photos (
+  await ensureFilmsSeeded(db);
+
+  await db.runAsync(
+    `CREATE TABLE IF NOT EXISTS photos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uri TEXT NOT NULL,
       film_id INTEGER,
       status TEXT NOT NULL DEFAULT 'undeveloped',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (film_id) REFERENCES films (id)
-    );
+    );`
+  );
 
-    CREATE TABLE IF NOT EXISTS film_inventory (
+  await db.runAsync(
+    `CREATE TABLE IF NOT EXISTS film_inventory (
       type TEXT PRIMARY KEY,
       count INTEGER NOT NULL DEFAULT 0
-    );
-  `);
+    );`
+  );
 
   const photoColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(photos);');
   const hasFilmId = photoColumns.some((column) => column.name === 'film_id');
@@ -69,7 +118,7 @@ export const initDatabase = async (): Promise<void> => {
   await db.runAsync("UPDATE photos SET created_at = datetime('now', 'localtime') WHERE created_at IS NULL OR created_at = ''; ");
   await db.runAsync('UPDATE photos SET film_id = 11 WHERE film_id IS NULL;');
 
-  await ensureFilmsSeeded();
+  await ensureFilmsSeeded(db);
 
   // 3種のフィルム行が存在しなければ初期挿入
   await db.runAsync(
@@ -77,11 +126,30 @@ export const initDatabase = async (): Promise<void> => {
   );
 };
 
+// テーブル初期化
+export const initDatabase = async (): Promise<void> => {
+  if (isDatabaseInitialized) {
+    return;
+  }
+
+  if (!databaseInitPromise) {
+    databaseInitPromise = (async () => {
+      await initializeDatabaseInternal();
+      isDatabaseInitialized = true;
+    })().finally(() => {
+      if (!isDatabaseInitialized) {
+        databaseInitPromise = null;
+      }
+    });
+  }
+
+  await databaseInitPromise;
+};
+
 export const initDb = initDatabase;
 
 export const getAllFilms = async (): Promise<FilmType[]> => {
-  await ensureFilmsSeeded();
-  return db.getAllAsync<FilmType>('SELECT id, name, description, effect_type FROM films ORDER BY id ASC;');
+  return withDatabaseRetry((db) => db.getAllAsync<FilmType>('SELECT id, name, description, effect_type FROM films ORDER BY id ASC;'));
 };
 
 // ===== Photos =====
@@ -92,15 +160,15 @@ export const addPhoto = async (
   filmId: number,
   status: 'undeveloped' | 'developed' = 'undeveloped',
 ): Promise<number> => {
-  const result = await db.runAsync(
+  const result = await withDatabaseRetry((db) => db.runAsync(
     "INSERT INTO photos (uri, film_id, status, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'));",
     [uri, filmId, status],
-  );
+  ));
   return result.lastInsertRowId;
 };
 
 export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Promise<PhotoWithFilmName[]> => {
-  return db.getAllAsync<PhotoWithFilmName>(
+  return withDatabaseRetry((db) => db.getAllAsync<PhotoWithFilmName>(
     `SELECT
       p.id,
       p.uri,
@@ -113,22 +181,22 @@ export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Pr
     WHERE p.status = ?
     ORDER BY datetime(p.created_at) DESC, p.id DESC;`,
     [status],
-  );
+  ));
 };
 
 export const updatePhotoStatus = async (id: number, status: 'undeveloped' | 'developed'): Promise<void> => {
-  await db.runAsync('UPDATE photos SET status = ? WHERE id = ?;', [status, id]);
+  await withDatabaseRetry((db) => db.runAsync('UPDATE photos SET status = ? WHERE id = ?;', [status, id]).then(() => undefined));
 };
 
 export const updatePhotoUri = async (id: number, uri: string): Promise<void> => {
-  await db.runAsync('UPDATE photos SET uri = ? WHERE id = ?;', [uri, id]);
+  await withDatabaseRetry((db) => db.runAsync('UPDATE photos SET uri = ? WHERE id = ?;', [uri, id]).then(() => undefined));
 };
 
 export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmType | null> => {
-  const row = await db.getFirstAsync<{ effect_type: string | null; name: string | null }>(
+  const row = await withDatabaseRetry((db) => db.getFirstAsync<{ effect_type: string | null; name: string | null }>(
     'SELECT effect_type, name FROM films WHERE id = ?;',
     [filmId],
-  );
+  ));
 
   const effect = row?.effect_type?.toLowerCase();
   if (effect === 'mono' || effect === 'vivid' || effect === 'retro') {
@@ -161,23 +229,23 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
 
 // 全件取得
 export const fetchPhotos = async (): Promise<Photo[]> => {
-  return db.getAllAsync<Photo>(
+  return withDatabaseRetry((db) => db.getAllAsync<Photo>(
     'SELECT id, uri, film_id, status, created_at FROM photos ORDER BY datetime(created_at) DESC, id DESC;'
-  );
+  ));
 };
 
 // レコード削除
 export const deletePhoto = async (id: number): Promise<void> => {
-  await db.runAsync('DELETE FROM photos WHERE id = ?;', [id]);
+  await withDatabaseRetry((db) => db.runAsync('DELETE FROM photos WHERE id = ?;', [id]).then(() => undefined));
 };
 
 // ===== Film Inventory =====
 
 /** フィルム在庫を全種取得 */
 export const getFilmInventory = async (): Promise<FilmInventory> => {
-  const rows = await db.getAllAsync<{ type: string; count: number }>(
+  const rows = await withDatabaseRetry((db) => db.getAllAsync<{ type: string; count: number }>(
     'SELECT type, count FROM film_inventory;'
-  );
+  ));
   const inventory: FilmInventory = { mono: 0, vivid: 0, retro: 0 };
   for (const row of rows) {
     if (row.type in inventory) {
@@ -189,18 +257,18 @@ export const getFilmInventory = async (): Promise<FilmInventory> => {
 
 /** 指定フィルムを count 本追加（デフォルト1本） */
 export const addFilm = async (type: RewardFilmType, count: number = 1): Promise<FilmInventory> => {
-  await db.runAsync(
+  await withDatabaseRetry((db) => db.runAsync(
     'UPDATE film_inventory SET count = count + ? WHERE type = ?;',
     [count, type]
-  );
+  ).then(() => undefined));
   return getFilmInventory();
 };
 
 /** 指定フィルムを1本消費。成功なら true、在庫不足なら false */
 export const consumeFilm = async (type: RewardFilmType): Promise<boolean> => {
-  const result = await db.runAsync(
+  const result = await withDatabaseRetry((db) => db.runAsync(
     'UPDATE film_inventory SET count = count - 1 WHERE type = ? AND count > 0;',
     [type]
-  );
+  ));
   return result.changes > 0;
 };

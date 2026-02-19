@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform, PanResponder } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SetupScreen } from './src/screens/SetupScreen';
@@ -184,24 +185,31 @@ export default function App() {
   // SetupScreen is rendered full-screen (outside SafeAreaView)
   if (currentScreen === 'Setup' || currentScreen === 'Camera') {
     return (
-      <View style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
-        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-        {renderContent()}
-      </View>
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <View style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
+          <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+          {renderContent()}
+        </View>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.content}>
-        {renderContent()}
-      </View>
-    </SafeAreaView>
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaView style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.content}>
+          {renderContent()}
+        </View>
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',

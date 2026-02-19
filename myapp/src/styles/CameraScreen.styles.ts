@@ -5,6 +5,11 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#050505',
   },
+  permissionText: {
+    color: 'white',
+    textAlign: 'center',
+    marginTop: 100,
+  },
   mainLayout: {
     flex: 1,
     flexDirection: 'row',

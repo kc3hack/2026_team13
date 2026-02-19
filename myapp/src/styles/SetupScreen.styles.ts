@@ -2,8 +2,8 @@ import { Dimensions, StyleSheet } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PARALLAX_FACTOR = 0.3;
-const PARALLAX_MAX_SCROLL = 500;
-const PARALLAX_OFFSET = PARALLAX_MAX_SCROLL * PARALLAX_FACTOR;
+export const PARALLAX_MAX_SCROLL = 500;
+export const PARALLAX_OFFSET = PARALLAX_MAX_SCROLL * PARALLAX_FACTOR;
 
 export const styles = StyleSheet.create({
   container: {
