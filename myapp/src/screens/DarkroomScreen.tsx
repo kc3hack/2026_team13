@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'; //reactのコンポーネントをインポート
-import { ActivityIndicator, Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState, Platform } from 'react-native'; //react nativeのコンポーネントをインポート
+import { ActivityIndicator, Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState, Platform, BackHandler } from 'react-native'; //react nativeのコンポーネントをインポート
 import { Audio } from 'expo-av'; //expoのAudioをインポート
 import { getFilmEffectTypeById, getPhotosByStatus, updatePhotoStatus, updatePhotoUri } from '../utils/sqlite';
 import * as MediaLibrary from 'expo-media-library';
@@ -18,7 +18,7 @@ interface DarkroomScreenProps {
 }
 
 // 現像に必要な時間（秒）[初期値=1時間] - 開発中は短くしてもOK
-const INITIAL_SECONDS = 60;
+const INITIAL_SECONDS = 30;
 
 // 現像処理の画面コンポーネント
 export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo }) => {
@@ -30,6 +30,8 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
   const waterSoundRef = useRef<Audio.Sound | null>(null);
   const cancelProcessingRef = useRef(false);
   const isLeavingDarkroomRef = useRef(false);
+  const pausedStartedAtRef = useRef<number | null>(null);
+  const pausedAccumulatedMsRef = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const [isProcessingFilter, setIsProcessingFilter] = useState(false);
@@ -190,19 +192,40 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       return;
     }
 
-    const targetPhotoId = developingPhoto.id;
     const startedAt = Date.now();
+    pausedStartedAtRef.current = null;
+    pausedAccumulatedMsRef.current = 0;
 
     setRemainingSeconds(INITIAL_SECONDS);
 
     const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const pausedMs = pausedAccumulatedMsRef.current
+        + (pausedStartedAtRef.current ? Date.now() - pausedStartedAtRef.current : 0);
+      const elapsed = Math.floor((Date.now() - startedAt - pausedMs) / 1000);
       const next = Math.max(0, INITIAL_SECONDS - elapsed);
       setRemainingSeconds(next);
     }, 250);
 
     return () => clearInterval(timer);
   }, [developingPhoto?.id]);
+
+  useEffect(() => {
+    if (!developingPhoto) {
+      return;
+    }
+
+    if (showExitConfirmModal) {
+      if (!pausedStartedAtRef.current) {
+        pausedStartedAtRef.current = Date.now();
+      }
+      return;
+    }
+
+    if (pausedStartedAtRef.current) {
+      pausedAccumulatedMsRef.current += Date.now() - pausedStartedAtRef.current;
+      pausedStartedAtRef.current = null;
+    }
+  }, [developingPhoto, showExitConfirmModal]);
 
   useEffect(() => {
     if (!developingPhoto) {
@@ -221,7 +244,16 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
 
     void (async () => {
       try {
-        const effectType = await getFilmEffectTypeById(targetPhoto.filmId);
+        const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
+        const effectType =
+          resolvedEffectType
+          ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
+            ? 'mono'
+            : targetPhoto.filmId === 2 || targetPhoto.filmId === 12
+              ? 'vivid'
+              : targetPhoto.filmId === 3 || targetPhoto.filmId === 13
+                ? 'retro'
+                : 'mono');
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelled || cancelProcessingRef.current || isLeavingDarkroomRef.current,
         });
@@ -305,6 +337,21 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     setShowExitConfirmModal(true);
   };
 
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (canShowBackButton) {
+        handleBackPress();
+      }
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [canShowBackButton]);
+
   if (isPreparing) {
     return (
       <SafeAreaView style={styles.container}>
@@ -337,7 +384,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
             <Image source={{ uri: developingPhoto.uri }} style={styles.pendingPhoto} />
             {shouldMaskPendingPhoto && (
               <BlurView
-                intensity={35}
+                intensity={56}
                 tint="dark"
                 experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
                 style={styles.pendingPhotoMosaic}
@@ -453,7 +500,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 36,
     left: 20,
-    paddingVertical: 12,
+    padding: 10,
     zIndex: 30,
     elevation: 30,
   },

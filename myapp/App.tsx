@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform, PanResponder } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SetupScreen } from './src/screens/SetupScreen';
@@ -30,6 +30,20 @@ export default function App() {
   const [selectedFilm, setSelectedFilm] = useState<SelectedFilm | null>(null);
   const { startBGM, stopBGM } = useBGM();
 
+  const handleAppBackLikeAction = (): boolean => {
+    if (currentScreen === 'Home' || currentScreen === 'Setup' || currentScreen === 'Loading') {
+      return true;
+    }
+
+    if (currentScreen === 'Camera') {
+      setCurrentScreen('ImagePicker');
+      return true;
+    }
+
+    setCurrentScreen('Home');
+    return true;
+  };
+
   // Control BGM based on current screen
   useEffect(() => {
     if (currentScreen === 'Home') {
@@ -52,6 +66,35 @@ export default function App() {
     };
     bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      return handleAppBackLikeAction();
+
+    });
+
+    return () => subscription.remove();
+  }, [currentScreen]);
+
+  const iosEdgeBackPanResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (evt, gestureState) => (
+      Platform.OS === 'ios'
+      && currentScreen !== 'Setup'
+      && currentScreen !== 'Loading'
+      && evt.nativeEvent.pageX <= 24
+      && gestureState.dx > 12
+      && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
+    ),
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dx > 50) {
+        handleAppBackLikeAction();
+      }
+    },
+  });
 
   const handleLogout = async () => {
     await clearUserSettings();
@@ -109,7 +152,7 @@ export default function App() {
                   <CameraScreen 
                       filmType={selectedFilm?.type}
                       filmId={selectedFilm?.id}
-                      onBack={() => setCurrentScreen('ImagePicker')}
+                  onBack={() => setCurrentScreen('ImagePicker')}
                       onGoDarkroom={(photo: PendingDevelopPhoto) => {
                           setPendingDevelopPhoto(photo);
                           setCurrentScreen('Darkroom');
@@ -141,7 +184,7 @@ export default function App() {
   // SetupScreen is rendered full-screen (outside SafeAreaView)
   if (currentScreen === 'Setup' || currentScreen === 'Camera') {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
         {renderContent()}
       </View>
@@ -149,7 +192,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.content}>
         {renderContent()}

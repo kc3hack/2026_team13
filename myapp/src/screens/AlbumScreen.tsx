@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -11,10 +11,15 @@ import {
   Platform,
   Modal,
   Pressable,
+  BackHandler,
+  PanResponder,
+  useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 import { deletePhoto, getPhotosByStatus, PhotoWithFilmName } from '../utils/sqlite';
+import { getMenuBackgroundMode, MenuBackgroundMode } from '../utils/storage';
 
 interface AlbumScreenProps {
   onBack: () => void;
@@ -22,16 +27,95 @@ interface AlbumScreenProps {
 }
 
 type PhotoTab = 'developed' | 'undeveloped';
+type SortOrder = 'newest' | 'oldest' | 'film';
 
 const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList) => {
   React.useEffect(effect, deps);
 };
 
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }) => {
+  const GRID_COLUMNS = 3;
+  const GRID_SIDE_PADDING = 20;
+  const GRID_GAP = 8;
+  const sortOrderOptions: SortOrder[] = ['newest', 'oldest', 'film'];
+  const sortOrderLabelMap: Record<SortOrder, string> = {
+    newest: '新しい順',
+    oldest: '古い順',
+    film: '種類別',
+  };
+  const { width: screenWidth } = useWindowDimensions();
+  const detailPhotoGap = 16;
+  const detailScrollInterval = screenWidth + detailPhotoGap;
   const [photos, setPhotos] = useState<PhotoWithFilmName[]>([]);
   const [selectedTab, setSelectedTab] = useState<PhotoTab>('developed');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoWithFilmName | null>(null);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
+  const [backgroundMode, setBackgroundMode] = useState<MenuBackgroundMode>('light');
+  const isDarkBackground = backgroundMode === 'dark';
+
+  useEffect(() => {
+    void (async () => {
+      const mode = await getMenuBackgroundMode();
+      setBackgroundMode(mode);
+    })();
+  }, []);
+
+  const thumbnailSize = useMemo(() => {
+    const totalGap = GRID_GAP * (GRID_COLUMNS - 1);
+    const availableWidth = screenWidth - GRID_SIDE_PADDING * 2 - totalGap;
+    return Math.floor(availableWidth / GRID_COLUMNS);
+  }, [screenWidth]);
+
+  const sortedPhotos = useMemo(() => {
+    const getPhotoTime = (photo: PhotoWithFilmName): number => {
+      const createdAt = photo.created_at ? new Date(photo.created_at).getTime() : Number.NaN;
+      if (!Number.isNaN(createdAt)) {
+        return createdAt;
+      }
+      return photo.id;
+    };
+
+    return [...photos].sort((a, b) => {
+      const left = getPhotoTime(a);
+      const right = getPhotoTime(b);
+
+      if (sortOrder === 'newest') {
+        return right - left;
+      }
+
+      if (sortOrder === 'oldest') {
+        return left - right;
+      }
+
+      const leftFilmName = a.film_name ?? '';
+      const rightFilmName = b.film_name ?? '';
+      const byFilmName = leftFilmName.localeCompare(rightFilmName, 'ja');
+
+      if (byFilmName !== 0) {
+        return byFilmName;
+      }
+
+      return right - left;
+    });
+  }, [photos, sortOrder]);
+
+  const selectedPhotos = useMemo(
+    () => sortedPhotos.filter((photo) => selectedPhotoIds.includes(photo.id)),
+    [sortedPhotos, selectedPhotoIds],
+  );
+
+
+  const rotateSortOrder = useCallback(() => {
+    setSortOrder((prev) => {
+      const currentIndex = sortOrderOptions.indexOf(prev);
+      const nextIndex = (currentIndex + 1) % sortOrderOptions.length;
+      return sortOrderOptions[nextIndex];
+    });
+  }, [sortOrderOptions]);
 
   const load = useCallback(async (status: PhotoTab) => {
     const list = await getPhotosByStatus(status);
@@ -45,6 +129,62 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     [load, selectedTab],
   );
 
+  const closeSelectedPhoto = useCallback(() => {
+    setSelectedPhoto(null);
+    setSelectedPhotoIndex(0);
+  }, []);
+
+  const openActionMenu = useCallback((photo: PhotoWithFilmName) => {
+    setMenuTargetPhoto(photo);
+  }, []);
+
+  const closeActionMenu = useCallback(() => {
+    setMenuTargetPhoto(null);
+  }, []);
+
+  const handleBackLikeAction = useCallback(() => {
+    if (menuTargetPhoto) {
+      closeActionMenu();
+      return true;
+    }
+
+    if (selectedPhoto) {
+      closeSelectedPhoto();
+      return true;
+    }
+
+    if (isSelectionMode) {
+      setIsSelectionMode(false);
+      setSelectedPhotoIds([]);
+      return true;
+    }
+
+    onBack();
+    return true;
+  }, [menuTargetPhoto, selectedPhoto, closeActionMenu, closeSelectedPhoto, isSelectionMode, onBack]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      return handleBackLikeAction();
+    });
+
+    return () => subscription.remove();
+  }, [handleBackLikeAction]);
+
+  const iosEdgeBackPanResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (evt, gestureState) => (
+      Platform.OS === 'ios'
+      && evt.nativeEvent.pageX <= 24
+      && gestureState.dx > 12
+      && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
+    ),
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dx > 50) {
+        handleBackLikeAction();
+      }
+    },
+  }), [handleBackLikeAction]);
+
   const formattedCreatedAt = useMemo(() => {
     if (!menuTargetPhoto?.created_at) {
       return '-';
@@ -56,14 +196,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     return date.toLocaleString('ja-JP');
   }, [menuTargetPhoto]);
 
-  const openActionMenu = (photo: PhotoWithFilmName) => {
-    setMenuTargetPhoto(photo);
-  };
-
-  const closeActionMenu = () => {
-    setMenuTargetPhoto(null);
-  };
-
   const handleDelete = (photo: PhotoWithFilmName) => {
     Alert.alert('削除', 'この写真を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
@@ -74,7 +206,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           await deletePhoto(photo.id);
           closeActionMenu();
           if (selectedPhoto?.id === photo.id) {
-            setSelectedPhoto(null);
+            closeSelectedPhoto();
           }
           await load(selectedTab);
         },
@@ -84,7 +216,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
 
   const handleDevelop = (photo: PhotoWithFilmName) => {
     closeActionMenu();
-    setSelectedPhoto(null);
+    closeSelectedPhoto();
     onGoDarkroom({
       id: photo.id,
       uri: photo.uri,
@@ -92,93 +224,283 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     });
   };
 
+  const resolveSavableUri = useCallback(async (uri: string): Promise<string> => {
+    const basePath = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+    if (!basePath) {
+      return uri;
+    }
+
+    const targetUri = `${basePath}album_export_${Date.now()}.jpg`;
+
+    try {
+      await FileSystem.copyAsync({ from: uri, to: targetUri });
+    } catch {
+      return uri;
+    }
+
+    try {
+      const copiedInfo = await FileSystem.getInfoAsync(targetUri);
+      if (copiedInfo.exists) {
+        return targetUri;
+      }
+    } catch {
+      return uri;
+    }
+
+    return uri;
+  }, []);
+
+  const savePhotoToLibrary = useCallback(async (uri: string): Promise<boolean> => {
+    try {
+      const savableUri = await resolveSavableUri(uri);
+      await MediaLibrary.saveToLibraryAsync(savableUri);
+      return true;
+    } catch (firstError) {
+      try {
+        const savableUri = await resolveSavableUri(uri);
+        await MediaLibrary.createAssetAsync(savableUri);
+        return true;
+      } catch (secondError) {
+        console.log('failed to save photo to device', { firstError, secondError, uri });
+        return false;
+      }
+    }
+  }, [resolveSavableUri]);
+
   const handleSaveToDevice = async (photo: PhotoWithFilmName) => {
-    const permission = await MediaLibrary.requestPermissionsAsync();
-    if (permission.status !== 'granted') {
+    const permission = await MediaLibrary.requestPermissionsAsync(true);
+    if (!permission.granted) {
       Alert.alert('保存できません', '写真ライブラリへのアクセス権限が必要です');
       return;
     }
 
-    try {
-      await MediaLibrary.saveToLibraryAsync(photo.uri);
+    const saved = await savePhotoToLibrary(photo.uri);
+    if (saved) {
       Alert.alert('保存完了', '写真を端末に保存しました');
       closeActionMenu();
-    } catch {
-      Alert.alert('保存失敗', '写真の保存に失敗しました');
+      return;
     }
+
+    Alert.alert('保存失敗', '写真の保存に失敗しました');
   };
 
-  const renderItem = ({ item }: { item: PhotoWithFilmName }) => (
+  const toggleSelectionMode = useCallback(() => {
+    setIsSelectionMode((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSelectedPhotoIds([]);
+      }
+      return next;
+    });
+  }, []);
+
+  const togglePhotoSelection = useCallback((photoId: number) => {
+    setSelectedPhotoIds((prev) => {
+      if (prev.includes(photoId)) {
+        return prev.filter((id) => id !== photoId);
+      }
+      return [...prev, photoId];
+    });
+  }, []);
+
+  const handleSaveSelectedPhotos = useCallback(async () => {
+    if (selectedPhotos.length === 0) {
+      Alert.alert('未選択', '保存する写真を選択してください');
+      return;
+    }
+
+    const permission = await MediaLibrary.requestPermissionsAsync(true);
+    if (!permission.granted) {
+      Alert.alert('保存できません', '写真ライブラリへのアクセス権限が必要です');
+      return;
+    }
+
+    let successCount = 0;
+    for (const photo of selectedPhotos) {
+      const saved = await savePhotoToLibrary(photo.uri);
+      if (saved) {
+        successCount += 1;
+      }
+    }
+
+    Alert.alert('保存結果', `${successCount} / ${selectedPhotos.length}枚を保存しました`);
+  }, [savePhotoToLibrary, selectedPhotos]);
+
+  const handleDeleteSelectedPhotos = useCallback(() => {
+    if (selectedPhotoIds.length === 0) {
+      Alert.alert('未選択', '削除する写真を選択してください');
+      return;
+    }
+
+    Alert.alert('削除', `${selectedPhotoIds.length}枚の写真を削除しますか？`, [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: '削除',
+        style: 'destructive',
+        onPress: async () => {
+          for (const photoId of selectedPhotoIds) {
+            await deletePhoto(photoId);
+          }
+          setSelectedPhotoIds([]);
+          setIsSelectionMode(false);
+          await load(selectedTab);
+        },
+      },
+    ]);
+  }, [load, selectedPhotoIds, selectedTab]);
+
+  const renderItem = ({ item, index }: { item: PhotoWithFilmName; index: number }) => (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={() => setSelectedPhoto(item)}
-      onLongPress={() => openActionMenu(item)}
-      style={styles.photoItem}
+      onPress={() => {
+        if (isSelectionMode) {
+          togglePhotoSelection(item.id);
+          return;
+        }
+
+        setSelectedPhoto(item);
+        setSelectedPhotoIndex(index);
+      }}
+      onLongPress={() => {
+        if (isSelectionMode) {
+          togglePhotoSelection(item.id);
+          return;
+        }
+
+        setIsSelectionMode(true);
+        setSelectedPhotoIds([item.id]);
+      }}
+      style={[
+        styles.photoItem,
+        {
+          width: thumbnailSize,
+          marginRight: (index + 1) % GRID_COLUMNS === 0 ? 0 : GRID_GAP,
+        },
+      ]}
     >
-      <View style={styles.photoWrap}>
-        <Image source={{ uri: item.uri }} style={styles.photo} blurRadius={selectedTab === 'undeveloped' ? 10 : 0} />
+      <View style={[styles.photoWrap, isDarkBackground && styles.photoWrapDark, { width: thumbnailSize, height: thumbnailSize }]}>
+        <Image
+          source={{ uri: item.uri }}
+          style={[styles.photo, { width: thumbnailSize, height: thumbnailSize }]}
+          resizeMode="contain"
+          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
+        />
         {selectedTab === 'undeveloped' && (
           <BlurView
-            intensity={Platform.OS === 'ios' ? 8 : 0}
+            intensity={Platform.OS === 'ios' ? 22 : 0}
             tint="default"
             style={styles.photoBlurOverlay}
           />
         )}
+        {isSelectionMode && (
+          <View style={[styles.selectionBadge, selectedPhotoIds.includes(item.id) && styles.selectionBadgeActive]}>
+            <Text style={styles.selectionBadgeText}>{selectedPhotoIds.includes(item.id) ? '✓' : ''}</Text>
+          </View>
+        )}
       </View>
-      <Text style={styles.metaText}>状態: {item.status === 'developed' ? '現像済み' : '現像前'}</Text>
-      <Text style={styles.metaText}>フィルム: {item.film_name ?? '不明'}</Text>
+      <Text style={[styles.metaText, isDarkBackground && styles.textDarkSub]}>状態: {item.status === 'developed' ? '現像済み' : '現像前'}</Text>
+      <Text style={[styles.metaText, isDarkBackground && styles.textDarkSub]}>フィルム: {item.film_name ?? '不明'}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, isDarkBackground && styles.containerDark]}
+      {...iosEdgeBackPanResponder.panHandlers}
+    >
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={[styles.backText, isDarkBackground && styles.textDarkPrimary]}>← Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.selectionToggleButton, isDarkBackground && styles.controlDark]} onPress={toggleSelectionMode}>
+          <Text style={[styles.selectionToggleButtonText, isDarkBackground && styles.textDarkPrimary]}>{isSelectionMode ? '完了' : '選択'}</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.tabsWrap}>
+      <View style={[styles.tabsWrap, isDarkBackground && styles.tabsWrapDark]}>
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setSelectedTab('developed')}
+          onPress={() => {
+            setSelectedTab('developed');
+            setIsSelectionMode(false);
+            setSelectedPhotoIds([]);
+          }}
         >
-          <Text style={[styles.tabText, selectedTab === 'developed' && styles.tabTextActive]}>現像済み</Text>
-          {selectedTab === 'developed' && <View style={styles.tabIndicator} />}
+          <Text style={[styles.tabText, isDarkBackground && styles.textDarkSub, selectedTab === 'developed' && styles.tabTextActive, isDarkBackground && selectedTab === 'developed' && styles.textDarkPrimary]}>現像済み</Text>
+          {selectedTab === 'developed' && <View style={[styles.tabIndicator, isDarkBackground && styles.tabIndicatorDark]} />}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setSelectedTab('undeveloped')}
+          onPress={() => {
+            setSelectedTab('undeveloped');
+            setIsSelectionMode(false);
+            setSelectedPhotoIds([]);
+          }}
         >
-          <Text style={[styles.tabText, selectedTab === 'undeveloped' && styles.tabTextActive]}>未現像</Text>
-          {selectedTab === 'undeveloped' && <View style={styles.tabIndicator} />}
+          <Text style={[styles.tabText, isDarkBackground && styles.textDarkSub, selectedTab === 'undeveloped' && styles.tabTextActive, isDarkBackground && selectedTab === 'undeveloped' && styles.textDarkPrimary]}>未現像</Text>
+          {selectedTab === 'undeveloped' && <View style={[styles.tabIndicator, isDarkBackground && styles.tabIndicatorDark]} />}
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>{selectedTab === 'developed' ? '現像済みアルバム' : '現像待ちアルバム'}</Text>
-        {photos.length === 0 ? (
+        <Text style={[styles.title, isDarkBackground && styles.textDarkPrimary]}>{selectedTab === 'developed' ? '現像済みアルバム' : '現像待ちアルバム'}</Text>
+        {isSelectionMode && (
+          <Text style={[styles.selectionInfoText, isDarkBackground && styles.textDarkSub]}>{selectedPhotoIds.length}枚を選択中</Text>
+        )}
+        <TouchableOpacity
+          style={[styles.sortButton, isDarkBackground && styles.controlDark, isSelectionMode && styles.sortButtonDisabled]}
+          onPress={rotateSortOrder}
+          disabled={isSelectionMode}
+        >
+          <Text style={[styles.sortButtonText, isDarkBackground && styles.textDarkPrimary]}>{sortOrderLabelMap[sortOrder]}</Text>
+        </TouchableOpacity>
+        {sortedPhotos.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, isDarkBackground && styles.textDarkSub]}>
               {selectedTab === 'developed' ? '現像済みの写真はありません' : '現像待ちの写真はありません'}
             </Text>
           </View>
         ) : (
           <FlatList
-            data={photos}
-            keyExtractor={p => p.id.toString()}
+            data={sortedPhotos}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}
-            numColumns={3}
-            contentContainerStyle={styles.list}
+            style={styles.listView}
+            numColumns={GRID_COLUMNS}
+            columnWrapperStyle={styles.listRow}
+            contentContainerStyle={[styles.list, isSelectionMode && styles.listWithSelectionActions]}
           />
         )}
       </View>
 
-      <Modal visible={selectedPhoto !== null} animationType="fade" onRequestClose={() => setSelectedPhoto(null)}>
-        <SafeAreaView style={styles.detailContainer}>
+      {isSelectionMode && (
+        <View style={[styles.selectionActionBar, isDarkBackground && styles.selectionActionBarDark]}>
+          <View style={styles.selectionActionRow}>
+            <TouchableOpacity style={[styles.selectionActionButton, isDarkBackground && styles.controlDark]} onPress={() => void handleSaveSelectedPhotos()}>
+              <Text style={[styles.selectionActionButtonText, isDarkBackground && styles.textDarkPrimary]}>写真を保存</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.selectionActionButton, styles.selectionActionDangerButton, isDarkBackground && styles.controlDark]}
+              onPress={handleDeleteSelectedPhotos}
+            >
+              <Text style={[styles.selectionActionButtonText, styles.selectionActionDangerText]}>写真を削除</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <Modal
+        visible={selectedPhoto !== null}
+        animationType="fade"
+        onRequestClose={closeSelectedPhoto}
+      >
+        <SafeAreaView style={styles.detailContainer} {...iosEdgeBackPanResponder.panHandlers}>
           <View style={styles.detailHeader}>
-            <TouchableOpacity style={styles.detailHeaderButton} onPress={() => setSelectedPhoto(null)}>
+            <TouchableOpacity
+              style={styles.detailHeaderButton}
+              onPress={closeSelectedPhoto}
+            >
               <Text style={styles.detailHeaderText}>✕</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -190,21 +512,48 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           </View>
 
           {selectedPhoto && (
-            <View style={styles.detailImageWrap}>
-              <Image
-                source={{ uri: selectedPhoto.uri }}
-                style={styles.detailImage}
-                resizeMode="contain"
-                blurRadius={selectedPhoto.status === 'undeveloped' ? 14 : 0}
-              />
-              {selectedPhoto.status === 'undeveloped' && (
-                <BlurView
-                  intensity={Platform.OS === 'ios' ? 10 : 0}
-                  tint="default"
-                  style={styles.detailBlurOverlay}
-                />
+            <FlatList
+              data={sortedPhotos}
+              horizontal
+              decelerationRate="fast"
+              snapToInterval={detailScrollInterval}
+              snapToAlignment="start"
+              disableIntervalMomentum
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={p => p.id.toString()}
+              ItemSeparatorComponent={() => <View style={{ width: detailPhotoGap }} />}
+              initialScrollIndex={selectedPhotoIndex}
+              getItemLayout={(_, index) => ({
+                length: detailScrollInterval,
+                offset: detailScrollInterval * index,
+                index,
+              })}
+              onMomentumScrollEnd={(event) => {
+                const nextIndex = Math.round(event.nativeEvent.contentOffset.x / detailScrollInterval);
+                if (nextIndex < 0 || nextIndex >= sortedPhotos.length) {
+                  return;
+                }
+                setSelectedPhotoIndex(nextIndex);
+                setSelectedPhoto(sortedPhotos[nextIndex]);
+              }}
+              renderItem={({ item }) => (
+                <View style={[styles.detailImageWrap, { width: screenWidth }]}>
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={styles.detailImage}
+                    resizeMode="contain"
+                    blurRadius={item.status === 'undeveloped' ? 22 : 0}
+                  />
+                  {item.status === 'undeveloped' && (
+                    <BlurView
+                      intensity={Platform.OS === 'ios' ? 22 : 0}
+                      tint="default"
+                      style={styles.detailBlurOverlay}
+                    />
+                  )}
+                </View>
               )}
-            </View>
+            />
           )}
         </SafeAreaView>
       </Modal>
@@ -256,17 +605,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  containerDark: {
+    backgroundColor: '#000000',
+  },
+  textDarkPrimary: {
+    color: '#F1F1F1',
+  },
+  textDarkSub: {
+    color: '#C7C7C7',
+  },
+  controlDark: {
+    backgroundColor: '#171717',
+    borderColor: '#3A3A3A',
+  },
   header: {
+    width: '100%',
+    paddingTop: 20,
     paddingHorizontal: 20,
-    paddingTop: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   backButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 12,
+    padding: 10,
   },
   backText: {
     color: '#007AFF',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  selectionToggleButton: {
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  selectionToggleButtonText: {
+    fontSize: 12,
+    color: '#3A3A3A',
     fontWeight: '600',
   },
   tabsWrap: {
@@ -275,10 +652,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
-    marginTop: 6,
+    marginTop: 2,
+  },
+  tabsWrapDark: {
+    borderBottomColor: '#2E2E2E',
   },
   tabItem: {
-    width: 140,
+    width: '50%',
+    maxWidth: 180,
     alignItems: 'center',
     paddingVertical: 10,
   },
@@ -298,20 +679,100 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     backgroundColor: '#1E1E1E',
   },
+  tabIndicatorDark: {
+    backgroundColor: '#F1F1F1',
+  },
   content: {
     flex: 1,
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: 12,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1E1E1E',
     letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  selectionInfoText: {
+    fontSize: 12,
+    color: '#3A3A3A',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  selectionActionBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 0,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'android' ? 24 : 18,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+    borderRadius: 14,
+  },
+  selectionActionBarDark: {
+    backgroundColor: 'rgba(18,18,18,0.96)',
+    borderTopColor: '#2E2E2E',
+  },
+  selectionActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  selectionActionButton: {
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  selectionActionButtonText: {
+    fontSize: 12,
+    color: '#3A3A3A',
+    fontWeight: '600',
+  },
+  selectionActionDangerButton: {
+    borderColor: '#E6C4C4',
+  },
+  selectionActionDangerText: {
+    color: '#D63A3A',
+  },
+  sortButton: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  sortButtonDisabled: {
+    opacity: 0.5,
+  },
+  sortButtonText: {
+    fontSize: 12,
+    color: '#3A3A3A',
+    fontWeight: '600',
   },
   list: {
-    marginTop: 20,
-    paddingBottom: 20,
+    marginTop: 16,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    width: '100%',
+  },
+  listView: {
+    width: '100%',
+    alignSelf: 'stretch',
+  },
+  listWithSelectionActions: {
+    paddingBottom: Platform.OS === 'android' ? 124 : 88,
+  },
+  listRow: {
+    width: '100%',
+    justifyContent: 'flex-start',
+    marginBottom: 12,
   },
   emptyWrap: {
     flex: 1,
@@ -323,26 +784,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   photoItem: {
-    width: 108,
-    marginHorizontal: 4,
-    marginBottom: 12,
+    marginRight: 0,
+    marginHorizontal: 0,
+    marginBottom: 0,
   },
   photoWrap: {
     position: 'relative',
-    width: 100,
-    height: 100,
     marginBottom: 4,
     borderRadius: 8,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  photoWrapDark: {
+    borderColor: '#000000',
   },
   photo: {
-    width: 100,
-    height: 100,
+    backgroundColor: 'transparent',
   },
   photoBlurOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
     backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  selectionBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  selectionBadgeActive: {
+    backgroundColor: '#1E1E1E',
+  },
+  selectionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 14,
   },
   metaText: {
     fontSize: 10,

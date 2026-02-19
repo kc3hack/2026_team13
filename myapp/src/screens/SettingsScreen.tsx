@@ -9,7 +9,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { getUserSettings, saveUserSettings } from '../utils/storage';
+import { getMenuBackgroundMode, getUserSettings, MenuBackgroundMode, saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
 import { useBGM } from '../hooks/useBGM';
@@ -24,16 +24,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [backgroundMode, setBackgroundMode] = useState<MenuBackgroundMode>('light');
+  const isDarkBackground = backgroundMode === 'dark';
   const { volume, updateVolume } = useBGM();
 
   useEffect(() => {
     const loadSettings = async () => {
       const settings = await getUserSettings();
+      const mode = await getMenuBackgroundMode();
       if (settings) {
         setUsername(settings.username);
         setToken(settings.token);
         setGitEmail(settings.gitEmail || '');
       }
+      setBackgroundMode(mode);
     };
     loadSettings();
   }, []);
@@ -73,14 +77,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDarkBackground && styles.containerDark]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isDarkBackground && styles.headerDark]}>
         <TouchableOpacity onPress={onCancel} style={styles.backTouchable}>
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={[styles.backText, isDarkBackground && styles.textDarkPrimary]}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.headerSpacer} />
+        <Text style={[styles.headerTitle, isDarkBackground && styles.textDarkPrimary]}>Settings</Text>
       </View>
 
       <ScrollView
@@ -89,81 +92,85 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         keyboardShouldPersistTaps="handled"
       >
         {/* ── Profile ── */}
-        <Text style={styles.sectionTitle}>Profile</Text>
+        <Text style={[styles.sectionTitle, isDarkBackground && styles.textDarkSub]}>Profile</Text>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>GitHub Username</Text>
-          <TextInput
-            style={styles.input}
-            value={username}
-            onChangeText={setUsername}
-            placeholder="e.g. octocat"
-            placeholderTextColor="#aaa"
-            autoCapitalize="none"
-          />
-        </View>
+        <View style={[styles.sectionCard, isDarkBackground && styles.sectionCardDark]}>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>GitHub Username</Text>
+            <TextInput
+              style={[styles.input, isDarkBackground && styles.inputDark]}
+              value={username}
+              onChangeText={setUsername}
+              placeholder="e.g. octocat"
+              placeholderTextColor="#aaa"
+              autoCapitalize="none"
+            />
+          </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Personal Access Token (PAT)</Text>
-          <TextInput
-            style={styles.input}
-            value={token}
-            onChangeText={setToken}
-            placeholder="github_pat_..."
-            placeholderTextColor="#aaa"
-            secureTextEntry
-            autoCapitalize="none"
-          />
-          <Text style={styles.helperText}>
-            Fine-grained PAT with Contents (Read-only) permission.
-          </Text>
-        </View>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>Personal Access Token (PAT)</Text>
+            <TextInput
+              style={[styles.input, isDarkBackground && styles.inputDark]}
+              value={token}
+              onChangeText={setToken}
+              placeholder="github_pat_..."
+              placeholderTextColor="#aaa"
+              secureTextEntry
+              autoCapitalize="none"
+            />
+            <Text style={[styles.helperText, isDarkBackground && styles.textDarkSub]}>
+              Fine-grained PAT with Contents (Read-only) permission.
+            </Text>
+          </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Git Email (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={gitEmail}
-            onChangeText={setGitEmail}
-            placeholder="email@example.com"
-            placeholderTextColor="#aaa"
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <Text style={styles.helperText}>
-            Used to identify your commits accurately.
-          </Text>
+          <View style={[styles.inputGroup, styles.inputGroupLast]}>
+            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>Git Email (Optional)</Text>
+            <TextInput
+              style={[styles.input, isDarkBackground && styles.inputDark]}
+              value={gitEmail}
+              onChangeText={setGitEmail}
+              placeholder="email@example.com"
+              placeholderTextColor="#aaa"
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            <Text style={[styles.helperText, isDarkBackground && styles.textDarkSub]}>
+              Used to identify your commits accurately.
+            </Text>
+          </View>
         </View>
 
         {/* Divider */}
-        <View style={styles.divider} />
+        <View style={[styles.divider, isDarkBackground && styles.dividerDark]} />
 
         {/* ── Sounds ── */}
-        <Text style={styles.sectionTitle}>Sounds</Text>
+        <Text style={[styles.sectionTitle, isDarkBackground && styles.textDarkSub]}>Sounds</Text>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>BGM Volume</Text>
-          <View style={styles.volumeRow}>
-            <TouchableOpacity style={styles.volumeBtn} onPress={handleVolumeDecrease}>
-              <Text style={styles.volumeBtnText}>−</Text>
-            </TouchableOpacity>
-            <View style={styles.volumeTrackWrap}>
-              <View style={styles.volumeTrack}>
-                <View style={[styles.volumeFill, { width: `${volume * 100}%` }]} />
+        <View style={[styles.sectionCard, isDarkBackground && styles.sectionCardDark]}>
+          <View style={[styles.inputGroup, styles.inputGroupLast]}>
+            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>BGM Volume</Text>
+            <View style={styles.volumeRow}>
+              <TouchableOpacity style={[styles.volumeBtn, isDarkBackground && styles.volumeBtnDark]} onPress={handleVolumeDecrease}>
+                <Text style={[styles.volumeBtnText, isDarkBackground && styles.textDarkPrimary]}>−</Text>
+              </TouchableOpacity>
+              <View style={styles.volumeTrackWrap}>
+                <View style={[styles.volumeTrack, isDarkBackground && styles.volumeTrackDark]}>
+                  <View style={[styles.volumeFill, { width: `${volume * 100}%` }]} />
+                </View>
+                <Text style={[styles.volumePercent, isDarkBackground && styles.textDarkSub]}>{Math.round(volume * 100)}%</Text>
               </View>
-              <Text style={styles.volumePercent}>{Math.round(volume * 100)}%</Text>
+              <TouchableOpacity style={[styles.volumeBtn, isDarkBackground && styles.volumeBtnDark]} onPress={handleVolumeIncrease}>
+                <Text style={[styles.volumeBtnText, isDarkBackground && styles.textDarkPrimary]}>+</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.volumeBtn} onPress={handleVolumeIncrease}>
-              <Text style={styles.volumeBtnText}>+</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
 
       {/* Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, isDarkBackground && styles.footerDark]}>
         <TouchableOpacity style={[styles.footerBtn, styles.cancelBtn]} onPress={onCancel}>
-          <Text style={styles.cancelBtnText}>Cancel</Text>
+          <Text style={[styles.cancelBtnText, isDarkBackground && styles.textDarkSub]}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.footerBtn, styles.saveBtn, loading && styles.disabledBtn]}
@@ -182,22 +189,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  containerDark: {
+    backgroundColor: '#000000',
+  },
+  textDarkPrimary: {
+    color: '#F1F1F1',
+  },
+  textDarkSub: {
+    color: '#C7C7C7',
+  },
 
   /* ── Header ── */
   header: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 48,
+    paddingTop: 36,
     paddingBottom: 12,
-    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#ECECEC',
     backgroundColor: '#FFFFFF',
   },
+  headerDark: {
+    backgroundColor: '#101010',
+    borderBottomColor: '#2E2E2E',
+  },
   backTouchable: {
-    paddingVertical: 4,
-    paddingRight: 12,
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    padding: 10,
+    zIndex: 20,
   },
   backText: {
     fontSize: 16,
@@ -210,9 +231,6 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
     letterSpacing: 0.5,
   },
-  headerSpacer: {
-    width: 60, // balance the back button
-  },
 
   /* ── ScrollView ── */
   scrollView: {
@@ -220,33 +238,51 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 20,
     paddingBottom: 32,
   },
 
   /* ── Section ── */
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#888',
-    letterSpacing: 1.2,
+    color: '#666',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  sectionCard: {
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  sectionCardDark: {
+    backgroundColor: '#151515',
+    borderColor: '#2E2E2E',
   },
   divider: {
     height: 1,
     backgroundColor: '#ECECEC',
-    marginVertical: 24,
+    marginVertical: 20,
+  },
+  dividerDark: {
+    backgroundColor: '#2E2E2E',
   },
 
   /* ── Inputs ── */
   inputGroup: {
-    marginBottom: 18,
+    marginBottom: 14,
+  },
+  inputGroupLast: {
+    marginBottom: 0,
   },
   label: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 6,
+    marginBottom: 7,
     color: '#333',
   },
   input: {
@@ -259,10 +295,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1A1A1A',
   },
+  inputDark: {
+    backgroundColor: '#1F1F1F',
+    borderColor: '#3A3A3A',
+    color: '#F1F1F1',
+  },
   helperText: {
     fontSize: 12,
     color: '#999',
-    marginTop: 5,
+    marginTop: 6,
+    lineHeight: 18,
   },
 
   /* ── Volume ── */
@@ -277,6 +319,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  volumeBtnDark: {
+    backgroundColor: '#252525',
   },
   volumeBtnText: {
     fontSize: 20,
@@ -295,6 +340,9 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 6,
+  },
+  volumeTrackDark: {
+    backgroundColor: '#3A3A3A',
   },
   volumeFill: {
     height: '100%',
@@ -317,6 +365,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#ECECEC',
     backgroundColor: '#FFFFFF',
+  },
+  footerDark: {
+    borderTopColor: '#2E2E2E',
+    backgroundColor: '#101010',
   },
   footerBtn: {
     flex: 1,

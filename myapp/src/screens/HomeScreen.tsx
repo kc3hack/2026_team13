@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  BackHandler,
   PanResponder,
+  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -14,6 +16,7 @@ import {
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FILM_META } from '../types';
 import { addFilm } from '../utils/sqlite';
+import { getMenuBackgroundMode, MenuBackgroundMode, setMenuBackgroundMode } from '../utils/storage';
 
 interface HomeScreenProps {
   onLogout: () => void;
@@ -36,6 +39,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const closedX = menuWidth;
   const menuTranslateX = useRef(new Animated.Value(closedX)).current;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuBackgroundMode, setMenuBackgroundModeState] = useState<MenuBackgroundMode>('light');
+  const isMenuDark = menuBackgroundMode === 'dark';
 
   const handleCheckCommits = async () => {
     const result = await checkForCommits();
@@ -64,6 +69,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       }
     });
   };
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !menuOpen) {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeMenu();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [menuOpen, closedX]);
+
+  useEffect(() => {
+    void (async () => {
+      const mode = await getMenuBackgroundMode();
+      setMenuBackgroundModeState(mode);
+    })();
+  }, []);
 
   const edgePanResponder = useRef(
     PanResponder.create({
@@ -131,46 +156,51 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   };
 
+  const handleChangeMenuBackgroundMode = async (mode: MenuBackgroundMode) => {
+    setMenuBackgroundModeState(mode);
+    await setMenuBackgroundMode(mode);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, isMenuDark ? styles.containerDark : styles.containerLight]}>
       <View style={styles.topBar}>
         <View style={styles.filmBadgeRow}>
-          <View style={styles.filmBadge}>
-            <Text style={styles.filmBadgeText}>{FILM_META.mono.emoji} {filmInventory.mono}</Text>
+          <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.mono.emoji} {filmInventory.mono}</Text>
           </View>
-          <View style={styles.filmBadge}>
-            <Text style={styles.filmBadgeText}>{FILM_META.vivid.emoji} {filmInventory.vivid}</Text>
+          <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.vivid.emoji} {filmInventory.vivid}</Text>
           </View>
-          <View style={styles.filmBadge}>
-            <Text style={styles.filmBadgeText}>{FILM_META.retro.emoji} {filmInventory.retro}</Text>
+          <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.retro.emoji} {filmInventory.retro}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.menuButton} onPress={openMenu}>
-          <Text style={styles.menuButtonText}>☰</Text>
+          <Text style={[styles.menuButtonText, isMenuDark && styles.homeTextDark]}>☰</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.titleArea}>
-        <Text style={styles.title}>Git Coin Miner</Text>
+        <Text style={[styles.title, isMenuDark && styles.homeTextDark]}>Git Coin Miner</Text>
       </View>
 
       <View style={styles.commitArea}>
         <TouchableOpacity style={styles.checkButton} onPress={handleCheckCommits} disabled={loading}>
           {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>コミットチェック</Text>}
         </TouchableOpacity>
-        <Text style={styles.infoText}>Last Check: {lastCheckTime || 'None'}</Text>
+        <Text style={[styles.infoText, isMenuDark && styles.homeSubTextDark]}>Last Check: {lastCheckTime || 'None'}</Text>
       </View>
 
       <View style={styles.bottomControls}>
         <View style={styles.sideControlLeft}>
-          <TouchableOpacity style={styles.albumButton} onPress={onOpenAlbum}>
+          <TouchableOpacity style={[styles.albumButton, isMenuDark && styles.albumButtonDark]} onPress={onOpenAlbum}>
             <Text style={styles.albumIcon}>🖼️</Text>
-            <Text style={styles.albumLabel}>ALBUM</Text>
+            <Text style={[styles.albumLabel, isMenuDark && styles.homeSubTextDark]}>ALBUM</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.shutterOuter} onPress={onOpenImagePicker}>
-          <View style={styles.shutterInner} />
+        <TouchableOpacity style={[styles.shutterOuter, isMenuDark && styles.shutterOuterDark]} onPress={onOpenImagePicker}>
+          <View style={[styles.shutterInner, isMenuDark && styles.shutterInnerDark]} />
         </TouchableOpacity>
 
         <View style={styles.sideControlRight}>
@@ -189,6 +219,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <Animated.View
             style={[
               styles.menuPanel,
+              isMenuDark ? styles.menuPanelDark : styles.menuPanelLight,
               {
                 width: menuWidth,
                 transform: [{ translateX: menuTranslateX }],
@@ -197,25 +228,50 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {...menuPanResponder.panHandlers}
           >
             <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>MENU</Text>
+              <Text style={[styles.menuTitle, isMenuDark && styles.menuTextDark]}>MENU</Text>
               <TouchableOpacity onPress={closeMenu}>
-                <Text style={styles.closeText}>×</Text>
+                <Text style={[styles.closeText, isMenuDark && styles.menuTextDark]}>×</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.aboutTitle}>About</Text>
-            <Text style={styles.aboutText}>フィルム体験をテーマにしたコミット連動ダッシュボードです。</Text>
-            <Text style={styles.debugTitle}>デバッグ: フィルム追加</Text>
-            <TouchableOpacity style={styles.debugAction} onPress={() => handleAddDebugFilm('mono')}>
-              <Text style={styles.debugActionText}>⚫ モノクロを追加（所持: {filmInventory.mono}）</Text>
+            <Text style={[styles.aboutTitle, isMenuDark && styles.menuTextDark]}>About</Text>
+            <Text style={[styles.aboutText, isMenuDark && styles.menuSubTextDark]}>フィルム体験をテーマにしたコミット連動ダッシュボードです。</Text>
+
+            <Text style={[styles.menuSectionTitle, isMenuDark && styles.menuTextDark]}>背景</Text>
+            <View style={styles.menuThemeRow}>
+              <TouchableOpacity
+                style={[
+                  styles.menuThemeButton,
+                  menuBackgroundMode === 'light' && styles.menuThemeButtonActive,
+                  isMenuDark && styles.menuThemeButtonDark,
+                ]}
+                onPress={() => void handleChangeMenuBackgroundMode('light')}
+              >
+                <Text style={[styles.menuThemeButtonText, isMenuDark && styles.menuTextDark]}>白</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.menuThemeButton,
+                  menuBackgroundMode === 'dark' && styles.menuThemeButtonActive,
+                  isMenuDark && styles.menuThemeButtonDark,
+                ]}
+                onPress={() => void handleChangeMenuBackgroundMode('dark')}
+              >
+                <Text style={[styles.menuThemeButtonText, isMenuDark && styles.menuTextDark]}>黒</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.debugTitle, isMenuDark && styles.menuTextDark]}>デバッグ: フィルム追加</Text>
+            <TouchableOpacity style={[styles.debugAction, isMenuDark && styles.debugActionDark]} onPress={() => handleAddDebugFilm('mono')}>
+              <Text style={[styles.debugActionText, isMenuDark && styles.menuSubTextDark]}>⚫ モノクロを追加（所持: {filmInventory.mono}）</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.debugAction} onPress={() => handleAddDebugFilm('vivid')}>
-              <Text style={styles.debugActionText}>🌈 ビビッドを追加（所持: {filmInventory.vivid}）</Text>
+            <TouchableOpacity style={[styles.debugAction, isMenuDark && styles.debugActionDark]} onPress={() => handleAddDebugFilm('vivid')}>
+              <Text style={[styles.debugActionText, isMenuDark && styles.menuSubTextDark]}>🌈 ビビッドを追加（所持: {filmInventory.vivid}）</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.debugAction} onPress={() => handleAddDebugFilm('retro')}>
-              <Text style={styles.debugActionText}>📼 レトロを追加（所持: {filmInventory.retro}）</Text>
+            <TouchableOpacity style={[styles.debugAction, isMenuDark && styles.debugActionDark]} onPress={() => handleAddDebugFilm('retro')}>
+              <Text style={[styles.debugActionText, isMenuDark && styles.menuSubTextDark]}>📼 レトロを追加（所持: {filmInventory.retro}）</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsAction} onPress={onOpenSettings}>
-              <Text style={styles.settingsActionText}>Settings</Text>
+            <TouchableOpacity style={[styles.settingsAction, isMenuDark && styles.settingsActionDark]} onPress={onOpenSettings}>
+              <Text style={[styles.settingsActionText, isMenuDark && styles.menuTextDark]}>Settings</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.logoutAction} onPress={handleLogout}>
               <Text style={styles.logoutActionText}>ログアウト</Text>
@@ -230,7 +286,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  containerLight: {
     backgroundColor: '#FFFFFF',
+  },
+  containerDark: {
+    backgroundColor: '#000000',
   },
   topBar: {
     height: 96,
@@ -255,6 +316,10 @@ const styles = StyleSheet.create({
     borderColor: '#D6D6D6',
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
+  },
+  filmBadgeDark: {
+    backgroundColor: '#171717',
+    borderColor: '#3A3A3A',
   },
   filmBadgeText: {
     fontSize: 14,
@@ -306,6 +371,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 12,
     color: '#777777',
+  },
+  homeTextDark: {
+    color: '#F1F1F1',
+  },
+  homeSubTextDark: {
+    color: '#C7C7C7',
   },
   filmSelectorWrap: {
     marginTop: 28,
@@ -377,6 +448,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  albumButtonDark: {
+    backgroundColor: '#171717',
+    borderColor: '#3A3A3A',
+  },
   albumIcon: {
     fontSize: 16,
     marginBottom: 2,
@@ -397,6 +472,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  shutterOuterDark: {
+    backgroundColor: '#101010',
+    borderColor: '#2E2E2E',
+  },
   shutterInner: {
     width: 64,
     height: 64,
@@ -404,6 +483,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F1F1',
     borderWidth: 1,
     borderColor: '#DDDDDD',
+  },
+  shutterInnerDark: {
+    backgroundColor: '#202020',
+    borderColor: '#3A3A3A',
   },
   darkroomButton: {
     width: 92,
@@ -443,7 +526,6 @@ const styles = StyleSheet.create({
   },
   menuPanel: {
     height: '100%',
-    backgroundColor: '#FFFFFF',
     paddingTop: 32,
     paddingHorizontal: 20,
     borderLeftWidth: 1,
@@ -453,6 +535,13 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: -2, height: 0 },
     elevation: 4,
+  },
+  menuPanelLight: {
+    backgroundColor: '#FFFFFF',
+  },
+  menuPanelDark: {
+    backgroundColor: '#121212',
+    borderLeftColor: '#2E2E2E',
   },
   menuHeader: {
     flexDirection: 'row',
@@ -482,6 +571,39 @@ const styles = StyleSheet.create({
     color: '#555555',
     marginBottom: 24,
   },
+  menuSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2A2A2A',
+    marginBottom: 8,
+  },
+  menuThemeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  menuThemeButton: {
+    minWidth: 56,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DADADA',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  menuThemeButtonDark: {
+    backgroundColor: '#1E1E1E',
+    borderColor: '#3E3E3E',
+  },
+  menuThemeButtonActive: {
+    borderColor: '#2EA44F',
+  },
+  menuThemeButtonText: {
+    fontSize: 13,
+    color: '#1E1E1E',
+    fontWeight: '600',
+  },
   debugTitle: {
     fontSize: 13,
     fontWeight: '700',
@@ -498,6 +620,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: '#FFFFFF',
   },
+  debugActionDark: {
+    backgroundColor: '#1B1B1B',
+    borderColor: '#3E3E3E',
+  },
   debugActionText: {
     fontSize: 13,
     color: '#1E1E1E',
@@ -512,6 +638,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  settingsActionDark: {
+    borderColor: '#3E3E3E',
+    backgroundColor: '#1A1A1A',
   },
   settingsActionText: {
     fontSize: 14,
@@ -534,5 +664,11 @@ const styles = StyleSheet.create({
     color: '#A12A2A',
     fontSize: 14,
     fontWeight: '700',
+  },
+  menuTextDark: {
+    color: '#F1F1F1',
+  },
+  menuSubTextDark: {
+    color: '#C7C7C7',
   },
 });

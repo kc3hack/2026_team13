@@ -67,6 +67,7 @@ export const initDatabase = async (): Promise<void> => {
   }
 
   await db.runAsync("UPDATE photos SET created_at = datetime('now', 'localtime') WHERE created_at IS NULL OR created_at = ''; ");
+  await db.runAsync('UPDATE photos SET film_id = 11 WHERE film_id IS NULL;');
 
   await ensureFilmsSeeded();
 
@@ -103,7 +104,7 @@ export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Pr
     `SELECT
       p.id,
       p.uri,
-      p.film_id,
+      COALESCE(p.film_id, 11) AS film_id,
       p.status,
       COALESCE(p.created_at, datetime('now', 'localtime')) AS created_at,
       f.name AS film_name
@@ -124,8 +125,8 @@ export const updatePhotoUri = async (id: number, uri: string): Promise<void> => 
 };
 
 export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmType | null> => {
-  const row = await db.getFirstAsync<{ effect_type: string }>(
-    'SELECT effect_type FROM films WHERE id = ?;',
+  const row = await db.getFirstAsync<{ effect_type: string | null; name: string | null }>(
+    'SELECT effect_type, name FROM films WHERE id = ?;',
     [filmId],
   );
 
@@ -134,7 +135,28 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
     return effect;
   }
 
-  return null;
+  const filmName = row?.name?.toLowerCase() ?? '';
+  if (filmName.includes('mono')) {
+    return 'mono';
+  }
+  if (filmName.includes('vivid')) {
+    return 'vivid';
+  }
+  if (filmName.includes('retro') || filmName.includes('vintage')) {
+    return 'retro';
+  }
+
+  if (filmId === 1 || filmId === 11) {
+    return 'mono';
+  }
+  if (filmId === 2 || filmId === 12) {
+    return 'vivid';
+  }
+  if (filmId === 3 || filmId === 13) {
+    return 'retro';
+  }
+
+  return 'mono';
 };
 
 // 全件取得
