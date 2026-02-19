@@ -27,16 +27,37 @@ export const useBGM = () => {
 
     return () => {
       // Cleanup
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
+      void (async () => {
+        const sound = soundRef.current;
+        if (!sound) {
+          return;
+        }
+
+        try {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded) {
+            await sound.unloadAsync();
+          }
+        } catch {
+          // no-op
+        } finally {
+          soundRef.current = null;
+        }
+      })();
     };
   }, []);
 
   const loadBGM = async () => {
     try {
       if (soundRef.current) {
-        await soundRef.current.unloadAsync();
+        try {
+          const status = await soundRef.current.getStatusAsync();
+          if (status.isLoaded) {
+            await soundRef.current.unloadAsync();
+          }
+        } catch {
+          // no-op
+        }
       }
       const { sound } = await Audio.Sound.createAsync(BGM_FILE, {
         volume,
@@ -65,10 +86,20 @@ export const useBGM = () => {
 
   const stopBGM = async () => {
     try {
-      if (soundRef.current && isPlaying) {
-        await soundRef.current.stopAsync();
-        setIsPlaying(false);
+      if (!soundRef.current) {
+        return;
       }
+
+      const status = await soundRef.current.getStatusAsync();
+      if (!status.isLoaded) {
+        setIsPlaying(false);
+        return;
+      }
+
+      if (status.isPlaying) {
+        await soundRef.current.stopAsync();
+      }
+      setIsPlaying(false);
     } catch (error) {
       console.error('Error stopping BGM:', error);
     }

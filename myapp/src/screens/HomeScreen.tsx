@@ -162,19 +162,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </View>
 
       <View style={styles.bottomControls}>
-        <TouchableOpacity style={styles.albumButton} onPress={onOpenAlbum}>
-          <View style={styles.albumPreview} />
-          <Text style={styles.albumLabel}>ALBUM</Text>
-        </TouchableOpacity>
+        <View style={styles.sideControlLeft}>
+          <TouchableOpacity style={styles.albumButton} onPress={onOpenAlbum}>
+            <Text style={styles.albumIcon}>🖼️</Text>
+            <Text style={styles.albumLabel}>ALBUM</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.shutterOuter} onPress={onOpenImagePicker}>
           <View style={styles.shutterInner} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.darkroomButton} onPress={onOpenDarkroom}>
-          <Text style={styles.darkroomIcon}>🔴</Text>
-          <Text style={styles.darkroomLabel}>暗室へ移動</Text>
-        </TouchableOpacity>
+        <View style={styles.sideControlRight}>
+          <TouchableOpacity style={styles.darkroomButton} onPress={onOpenDarkroom}>
+            <Text style={styles.darkroomIcon}>🔴</Text>
+            <Text style={styles.darkroomLabel}>暗室へ移動</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.rightEdgeGesture} {...edgePanResponder.panHandlers} />
@@ -352,24 +356,35 @@ const styles = StyleSheet.create({
     right: 20,
     bottom: 52,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  sideControlLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  sideControlRight: {
+    flex: 1,
     alignItems: 'flex-end',
   },
   albumButton: {
-    alignItems: 'center',
-  },
-  albumPreview: {
-    width: 54,
-    height: 54,
-    borderRadius: 8,
+    width: 92,
+    height: 62,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#D2D2D2',
     backgroundColor: '#F5F5F5',
-    marginBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  albumIcon: {
+    fontSize: 16,
+    marginBottom: 2,
   },
   albumLabel: {
     fontSize: 11,
     color: '#4A4A4A',
+    fontWeight: '700',
     letterSpacing: 1.2,
   },
   shutterOuter: {

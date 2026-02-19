@@ -174,7 +174,7 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
         <Text style={styles.backButtonText}>← Back</Text>
       </TouchableOpacity>
       
-      <Text style={styles.title}>Camera & Gallery</Text>
+      <Text style={styles.title}>Camera</Text>
 
       <View style={styles.selectorWrap}>
         <Text style={styles.selectorTitle}>フィルムを選択</Text>

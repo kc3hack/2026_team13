@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'; //reactのコンポーネントをインポート
-import { ActivityIndicator, Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState} from 'react-native'; //react nativeのコンポーネントをインポート
+import { ActivityIndicator, Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, AppState, Platform } from 'react-native'; //react nativeのコンポーネントをインポート
 import { Audio } from 'expo-av'; //expoのAudioをインポート
 import { getFilmEffectTypeById, getPhotosByStatus, updatePhotoStatus, updatePhotoUri } from '../utils/sqlite';
 import * as MediaLibrary from 'expo-media-library';
 import { Modal } from 'react-native';
 import { applyFilmEffectToPhoto } from '../utils/photoEffects';
+import { BlurView } from 'expo-blur';
 
 // 現像処理の画面
 interface DarkroomScreenProps {
@@ -30,6 +31,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
   const cancelProcessingRef = useRef(false);
   const isLeavingDarkroomRef = useRef(false);
   const [showModal, setShowModal] = useState(false);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const [isProcessingFilter, setIsProcessingFilter] = useState(false);
   const [isFilterProcessingDone, setIsFilterProcessingDone] = useState(false);
 
@@ -60,6 +62,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     cancelProcessingRef.current = true;
     hasShownSuccessAlert.current = true;
     hasUpdatedStatus.current = true;
+    setShowExitConfirmModal(false);
     setIsProcessingFilter(false);
     void stopAndUnloadWaterSound();
     onBack();
@@ -288,31 +291,25 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       .join(':');
   }, [remainingSeconds]);
 
-  const handleBackPress = () => {
-    const message = isProcessingFilter
-      ? 'フィルム処理を中断して暗室を出ます。よろしいですか？'
-      : '暗室を出るとタイマーはリセットされます。よろしいですか？';
+  const shouldMaskPendingPhoto =
+    !!developingPhoto &&
+    (remainingSeconds > 0 || isProcessingFilter || !isFilterProcessingDone);
 
-    Alert.alert(
-      '暗室を終了',
-      message,
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        {
-          text: '戻る',
-          style: 'destructive',
-          onPress: leaveDarkroom,
-        },
-      ],
-      { cancelable: true },
-    );
+  const canShowBackButton =
+    !isPreparing &&
+    !showModal &&
+    !showExitConfirmModal &&
+    !isLeavingDarkroomRef.current;
+
+  const handleBackPress = () => {
+    setShowExitConfirmModal(true);
   };
 
   if (isPreparing) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.glowLarge} />
-        <View style={styles.glowSmall} />
+        <View pointerEvents="none" style={styles.glowLarge} />
+        <View pointerEvents="none" style={styles.glowSmall} />
 
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#8B0000" />
@@ -324,17 +321,29 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.glowLarge} />
-      <View style={styles.glowSmall} />
+      <View pointerEvents="none" style={styles.glowLarge} />
+      <View pointerEvents="none" style={styles.glowSmall} />
 
-      <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
+      {canShowBackButton && (
+        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.pendingWrap}>
         <Text style={styles.pendingTitle}>現像待ちの写真</Text>
         {developingPhoto ? (
-          <Image source={{ uri: developingPhoto.uri }} style={styles.pendingPhoto} />
+          <View style={styles.pendingPhotoWrap}>
+            <Image source={{ uri: developingPhoto.uri }} style={styles.pendingPhoto} />
+            {shouldMaskPendingPhoto && (
+              <BlurView
+                intensity={35}
+                tint="dark"
+                experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+                style={styles.pendingPhotoMosaic}
+              />
+            )}
+          </View>
         ) : (
           <Text style={styles.pendingEmpty}>現像対象の写真がありません</Text>
         )}
@@ -377,6 +386,38 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     </View>
   </View>
 </Modal>
+
+      <Modal
+        visible={showExitConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExitConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>暗室を終了</Text>
+            <Text style={styles.exitConfirmMessage}>
+              {isProcessingFilter
+                ? 'フィルム処理を中断して暗室を出ます。よろしいですか？'
+                : '暗室を出るとタイマーはリセットされます。よろしいですか？'}
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.saveButton, styles.exitConfirmDangerButton]}
+              onPress={leaveDarkroom}
+            >
+              <Text style={styles.saveButtonText}>終了する</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowExitConfirmModal(false)}
+            >
+              <Text style={styles.closeButtonText}>キャンセル</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -413,6 +454,8 @@ const styles = StyleSheet.create({
     top: 36,
     left: 20,
     paddingVertical: 12,
+    zIndex: 30,
+    elevation: 30,
   },
   backButtonText: {
     fontSize: 16,
@@ -433,9 +476,20 @@ const styles = StyleSheet.create({
   pendingPhoto: {
     width: 220,
     height: 220,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  pendingPhotoWrap: {
+    position: 'relative',
+    width: 220,
+    height: 220,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  pendingPhotoMosaic: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
   },
   pendingEmpty: {
     color: '#C5B7B7',
@@ -522,5 +576,15 @@ closeButton: {
 },
 closeButtonText: {
   color: "#ccc",
+},
+exitConfirmMessage: {
+  color: '#E8D3D3',
+  fontSize: 14,
+  textAlign: 'center',
+  marginBottom: 20,
+  lineHeight: 20,
+},
+exitConfirmDangerButton: {
+  marginBottom: 10,
 },
 });
