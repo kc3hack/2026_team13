@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Button, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
 import { addFilm, addPhoto, consumeFilm, getAllFilms, getFilmInventory, initDatabase } from '../utils/sqlite';
@@ -101,8 +102,32 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
         return;
       }
 
-      const photoId = await addPhoto(uri, selectedFilmId, 'undeveloped');
-      setImage(uri);
+      const persistImageUri = async (sourceUri: string): Promise<string> => {
+        try {
+          const fileName = sourceUri.split('/').pop() || `photo_${Date.now()}.jpg`;
+          const extMatch = fileName.match(/\.[a-zA-Z0-9]+$/);
+          const extension = extMatch ? extMatch[0] : '.jpg';
+          const basePath = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+
+          if (!basePath) {
+            return sourceUri;
+          }
+
+          const targetDir = `${basePath}photos/`;
+          await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
+          const targetUri = `${targetDir}${Date.now()}_${Math.random().toString(36).slice(2)}${extension}`;
+
+          await FileSystem.copyAsync({ from: sourceUri, to: targetUri });
+          return targetUri;
+        } catch (error) {
+          console.log('failed to persist photo uri', error);
+          return sourceUri;
+        }
+      };
+
+      const persistedUri = await persistImageUri(uri);
+      const photoId = await addPhoto(persistedUri, selectedFilmId, 'undeveloped');
+      setImage(persistedUri);
       await loadFilmState();
 
       Alert.alert('保存完了', '今すぐ暗室（現像）に行きますか？', [
@@ -113,7 +138,7 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
         },
         {
           text: '行く',
-          onPress: () => onGoDarkroom({ id: photoId, uri, filmId: selectedFilmId }),
+          onPress: () => onGoDarkroom({ id: photoId, uri: persistedUri, filmId: selectedFilmId }),
         },
       ]);
     } catch (e) {

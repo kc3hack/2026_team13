@@ -116,12 +116,11 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
       style={styles.photoItem}
     >
       <View style={styles.photoWrap}>
-        <Image source={{ uri: item.uri }} style={styles.photo} />
+        <Image source={{ uri: item.uri }} style={styles.photo} blurRadius={selectedTab === 'undeveloped' ? 10 : 0} />
         {selectedTab === 'undeveloped' && (
           <BlurView
-            intensity={12}
+            intensity={Platform.OS === 'ios' ? 8 : 0}
             tint="default"
-            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
             style={styles.photoBlurOverlay}
           />
         )}
@@ -192,12 +191,16 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
 
           {selectedPhoto && (
             <View style={styles.detailImageWrap}>
-              <Image source={{ uri: selectedPhoto.uri }} style={styles.detailImage} resizeMode="contain" />
+              <Image
+                source={{ uri: selectedPhoto.uri }}
+                style={styles.detailImage}
+                resizeMode="contain"
+                blurRadius={selectedPhoto.status === 'undeveloped' ? 14 : 0}
+              />
               {selectedPhoto.status === 'undeveloped' && (
                 <BlurView
-                  intensity={16}
+                  intensity={Platform.OS === 'ios' ? 10 : 0}
                   tint="default"
-                  experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
                   style={styles.detailBlurOverlay}
                 />
               )}
