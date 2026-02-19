@@ -159,21 +159,6 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       return;
     }
 
-    const selectedFilmId = filmIdByType[selectedFilmType];
-    if (!selectedFilmId) {
-      Alert.alert('エラー', '選択したフィルム情報が見つかりません。');
-      return;
-    }
-
-    if (filmInventory[selectedFilmType] <= 0) {
-      Alert.alert('フィルム不足', 'このフィルムは所持していません。');
-      return;
-    }
-
-    // 問題なければ、親コンポーネントに遷移を依頼（選択したフィルム情報も一緒に渡す）
-    onGoCamera(selectedFilmType, selectedFilmId);
-  };
-
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
