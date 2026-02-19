@@ -1,18 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View, FlatList, Image, Alert, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { deletePhoto, fetchPhotos, getAllFilms, Photo } from '../utils/sqlite';
+import { deletePhoto, getAllFilms, getPhotosByStatus, Photo } from '../utils/sqlite';
 
 interface AlbumScreenProps {
   onBack: () => void;
 }
 
+type PhotoTab = 'developed' | 'undeveloped';
+
+const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList) => {
+  useEffect(effect, deps);
+};
+
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [filmNameById, setFilmNameById] = useState<Record<number, string>>({});
+  const [selectedTab, setSelectedTab] = useState<PhotoTab>('developed');
 
-  const load = async () => {
-    const [list, films] = await Promise.all([fetchPhotos(), getAllFilms()]);
+  const load = useCallback(async (status: PhotoTab) => {
+    const [list, films] = await Promise.all([getPhotosByStatus(status), getAllFilms()]);
     const nameMap: Record<number, string> = {};
     for (const film of films) {
       nameMap[film.id] = film.name;
@@ -20,11 +27,14 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
 
     setPhotos(list);
     setFilmNameById(nameMap);
-  };
-
-  useEffect(() => {
-    load();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load(selectedTab);
+    }, [load, selectedTab]),
+    [load, selectedTab],
+  );
 
   const renderItem = ({ item }: { item: Photo }) => (
     <TouchableOpacity
@@ -37,7 +47,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
             style: 'destructive',
             onPress: async () => {
               await deletePhoto(item.id);
-              load();
+              void load(selectedTab);
             },
           },
         ]);
@@ -46,7 +56,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
     >
       <View style={styles.photoWrap}>
         <Image source={{ uri: item.uri }} style={styles.photo} />
-        {item.status === 'undeveloped' && (
+        {selectedTab === 'undeveloped' && (
           <BlurView
             intensity={20}
             tint="light"
@@ -68,15 +78,41 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.tabsWrap}>
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => setSelectedTab('developed')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'developed' && styles.tabTextActive]}>現像済み</Text>
+          {selectedTab === 'developed' && <View style={styles.tabIndicator} />}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => setSelectedTab('undeveloped')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'undeveloped' && styles.tabTextActive]}>未現像</Text>
+          {selectedTab === 'undeveloped' && <View style={styles.tabIndicator} />}
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.content}>
-        <Text style={styles.title}>アルバム（現像前 / 現像済み）</Text>
-        <FlatList
-          data={photos}
-          keyExtractor={p => p.id.toString()}
-          renderItem={renderItem}
-          numColumns={3}
-          contentContainerStyle={styles.list}
-        />
+        <Text style={styles.title}>{selectedTab === 'developed' ? '現像済みアルバム' : '現像待ちアルバム'}</Text>
+        {photos.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>
+              {selectedTab === 'developed' ? '現像済みの写真はありません' : '現像待ちの写真はありません'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={photos}
+            keyExtractor={p => p.id.toString()}
+            renderItem={renderItem}
+            numColumns={3}
+            contentContainerStyle={styles.list}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -99,6 +135,35 @@ const styles = StyleSheet.create({
     color: '#2B2B2B',
     fontSize: 16,
   },
+  tabsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EFEFEF',
+    marginTop: 6,
+  },
+  tabItem: {
+    width: 140,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  tabText: {
+    color: '#787878',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  tabTextActive: {
+    color: '#1E1E1E',
+    fontWeight: '700',
+  },
+  tabIndicator: {
+    marginTop: 8,
+    width: 76,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#1E1E1E',
+  },
   content: {
     flex: 1,
     alignItems: 'center',
@@ -113,6 +178,15 @@ const styles = StyleSheet.create({
   list: {
     marginTop: 20,
     paddingBottom: 20,
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#666666',
+    fontSize: 14,
   },
   photoItem: {
     width: 108,
