@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
 import { addFilm, addPhoto, consumeFilm, getAllFilms, getFilmInventory, initDatabase } from '../utils/sqlite';
+import { getMenuBackgroundMode, MenuBackgroundMode } from '../utils/storage';
 
 interface ImagePickerScreenProps {
   onBack: () => void;
@@ -21,6 +22,8 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
     retro: null,
   });
   const [selectedFilmType, setSelectedFilmType] = useState<RewardFilmType | null>(null);
+  const [backgroundMode, setBackgroundMode] = useState<MenuBackgroundMode>('light');
+  const isDarkBackground = backgroundMode === 'dark';
 
   const resolveFilmIdByType = (films: FilmType[]): Record<RewardFilmType, number | null> => {
     const byEffect = new Map<string, number>();
@@ -73,6 +76,13 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
 
   useEffect(() => {
     void loadFilmState();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const mode = await getMenuBackgroundMode();
+      setBackgroundMode(mode);
+    })();
   }, []);
 
   const saveAndAskDevelop = async (uri: string) => {
@@ -172,15 +182,15 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDarkBackground && styles.containerDark]}>
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>← Back</Text>
+        <Text style={[styles.backButtonText, isDarkBackground && styles.textDarkPrimary]}>← Back</Text>
       </TouchableOpacity>
       
-      <Text style={styles.title}>Camera</Text>
+      <Text style={[styles.title, isDarkBackground && styles.textDarkPrimary]}>Camera</Text>
 
       <View style={styles.selectorWrap}>
-        <Text style={styles.selectorTitle}>フィルムを選択</Text>
+        <Text style={[styles.selectorTitle, isDarkBackground && styles.textDarkSub]}>フィルムを選択</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
           {(['mono', 'vivid', 'retro'] as RewardFilmType[]).map((type) => {
             const isSelected = type === selectedFilmType;
@@ -193,6 +203,7 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
                 key={type}
                 style={[
                   styles.filmChip,
+                  isDarkBackground && styles.filmChipDark,
                   isSelected && styles.filmChipSelected,
                   !isSelectable && styles.filmChipDisabled,
                 ]}
@@ -257,15 +268,26 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     backgroundColor: '#fff',
   },
+  containerDark: {
+    backgroundColor: '#000',
+  },
+  textDarkPrimary: {
+    color: '#F1F1F1',
+  },
+  textDarkSub: {
+    color: '#C7C7C7',
+  },
   backButton: {
-    alignSelf: 'flex-start',
-    marginLeft: 20,
-    marginBottom: 20,
+    position: 'absolute',
+    top: 36,
+    left: 20,
     padding: 10,
+    zIndex: 20,
   },
   backButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#007AFF',
+    fontWeight: '600',
   },
   title: {
     fontSize: 24,
@@ -295,6 +317,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: '#FFFFFF',
+  },
+  filmChipDark: {
+    backgroundColor: '#171717',
+    borderColor: '#3A3A3A',
   },
   filmChipSelected: {
     borderColor: '#222222',

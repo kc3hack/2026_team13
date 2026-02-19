@@ -18,7 +18,7 @@ interface DarkroomScreenProps {
 }
 
 // 現像に必要な時間（秒）[初期値=1時間] - 開発中は短くしてもOK
-const INITIAL_SECONDS = 60;
+const INITIAL_SECONDS = 30;
 
 // 現像処理の画面コンポーネント
 export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo }) => {
@@ -244,7 +244,16 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
 
     void (async () => {
       try {
-        const effectType = await getFilmEffectTypeById(targetPhoto.filmId);
+        const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
+        const effectType =
+          resolvedEffectType
+          ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
+            ? 'mono'
+            : targetPhoto.filmId === 2 || targetPhoto.filmId === 12
+              ? 'vivid'
+              : targetPhoto.filmId === 3 || targetPhoto.filmId === 13
+                ? 'retro'
+                : 'mono');
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelled || cancelProcessingRef.current || isLeavingDarkroomRef.current,
         });
@@ -491,7 +500,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 36,
     left: 20,
-    paddingVertical: 12,
+    padding: 10,
     zIndex: 30,
     elevation: 30,
   },

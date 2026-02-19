@@ -6,7 +6,10 @@ const KEYS = {
   USER_SETTINGS: 'USER_SETTINGS',
   LAST_CHECK_TIMESTAMP: 'LAST_CHECK_TIMESTAMP',
   BGM_VOLUME: 'BGM_VOLUME',
+  MENU_BACKGROUND_MODE: 'MENU_BACKGROUND_MODE',
 };
+
+export type MenuBackgroundMode = 'light' | 'dark';
 
 // --- User Settings ---
 export const saveUserSettings = async (settings: UserSettings): Promise<void> => {
@@ -42,4 +45,13 @@ export const setBGMVolume = async (volume: number): Promise<void> => {
   // Clamp volume between 0 and 1
   const clampedVolume = Math.max(0, Math.min(1, volume));
   await AsyncStorage.setItem(KEYS.BGM_VOLUME, clampedVolume.toString());
+};
+
+export const getMenuBackgroundMode = async (): Promise<MenuBackgroundMode> => {
+  const val = await AsyncStorage.getItem(KEYS.MENU_BACKGROUND_MODE);
+  return val === 'dark' ? 'dark' : 'light';
+};
+
+export const setMenuBackgroundMode = async (mode: MenuBackgroundMode): Promise<void> => {
+  await AsyncStorage.setItem(KEYS.MENU_BACKGROUND_MODE, mode);
 };

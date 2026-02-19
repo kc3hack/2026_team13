@@ -32,6 +32,8 @@ const normalizeBase64Payload = (rawBase64: string): string => {
 };
 
 const applyMonoFilter = async (data: Uint8Array, shouldCancel?: () => boolean): Promise<boolean> => {
+  const contrast = 1.22;
+
   let processedPixels = 0;
 
   for (let index = 0; index < data.length; index += 4) {
@@ -43,7 +45,8 @@ const applyMonoFilter = async (data: Uint8Array, shouldCancel?: () => boolean): 
     const green = data[index + 1];
     const blue = data[index + 2];
     const luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
-    const gray = clamp(luminance);
+    const contrastedGray = (luminance - 128) * contrast + 128;
+    const gray = clamp(contrastedGray);
 
     data[index] = gray;
     data[index + 1] = gray;
