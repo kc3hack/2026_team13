@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, View, StyleSheet, Alert, Text, TouchableOpacity, Platform } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
@@ -9,9 +8,10 @@ import { addFilm, addPhoto, consumeFilm, getAllFilms, getFilmInventory, initData
 interface ImagePickerScreenProps {
   onBack: () => void;
   onGoDarkroom: (photo: { id: number; uri: string; filmId: number }) => void;
+  onGoCamera: (filmType: RewardFilmType, filmId: number) => void;
 }
 
-export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, onGoDarkroom }) => {
+export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, onGoDarkroom, onGoCamera }) => {
   const [image, setImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
@@ -152,20 +152,23 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
     }
   };
 
-  const _camera = async (): Promise<void> => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert("エラー", "カメラへのアクセス権限が必要です。");
+  const _goToCustomCamera = () => {
+    if (!selectedFilmType) {
+      Alert.alert('フィルム未選択', '利用するフィルムを選択してください。');
+      return;
+    }
+    const selectedFilmId = filmIdByType[selectedFilmType];
+    if (!selectedFilmId) {
+      Alert.alert('エラー', '選択したフィルム情報が見つかりません。');
       return;
     }
 
-    let result = await ImagePicker.launchCameraAsync();
-
-    console.log(result);
-
-    if (!result.canceled) {
-      await saveAndAskDevelop(result.assets[0].uri);
+    if (filmInventory[selectedFilmType] <= 0) {
+      Alert.alert('フィルム不足', 'このフィルムは所持していません。');
+      return;
     }
+
+    onGoCamera(selectedFilmType, selectedFilmId);
   };
 
   return (
@@ -222,7 +225,7 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.cameraButton, saving && styles.cameraButtonDisabled]}
-          onPress={_camera}
+          onPress={_goToCustomCamera}
           disabled={saving}
           activeOpacity={0.85}
         >

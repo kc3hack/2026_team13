@@ -9,8 +9,9 @@ import { DarkroomScreen } from './src/screens/DarkroomScreen';
 import { useBGM } from './src/hooks/useBGM';
 import { initDb } from './src/utils/sqlite';
 import { getUserSettings, clearUserSettings } from './src/utils/storage';
+import { CameraScreen } from './src/screens/CameraScreen';
 
-type Screen = 'Loading' | 'Setup' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom';
+type Screen = 'Loading' | 'Setup' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom' | 'Camera';
 
 interface PendingDevelopPhoto {
   id: number;
@@ -18,9 +19,15 @@ interface PendingDevelopPhoto {
   filmId: number;
 }
 
+interface SelectedFilm {
+  type: string;
+  id: number;
+}
+
 export default function App() {
   const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('Loading');
+  const [selectedFilm, setSelectedFilm] = useState<SelectedFilm | null>(null);
   const { startBGM, stopBGM } = useBGM();
 
   // Control BGM based on current screen
@@ -85,10 +92,28 @@ export default function App() {
               return (
                   <ImagePickerScreen 
                       onBack={() => setCurrentScreen('Home')}
-                  onGoDarkroom={(photo) => {
-                  setPendingDevelopPhoto(photo);
-                  setCurrentScreen('Darkroom');
-                  }}
+                      onGoDarkroom={(photo) => {
+                        setPendingDevelopPhoto(photo);
+                        setCurrentScreen('Darkroom');
+                      }}
+                      onGoCamera={(filmType, filmId) => {
+                        setSelectedFilm({ type: filmType, id: filmId });
+                        setCurrentScreen('Camera');
+                        // setScreen('camera');
+                      }}
+                  />
+              );
+              case 'Camera':
+              return (
+                  // 5. CameraScreenの呼び出し
+                  <CameraScreen 
+                      filmType={selectedFilm?.type}
+                      filmId={selectedFilm?.id}
+                      onBack={() => setCurrentScreen('ImagePicker')}
+                      onGoDarkroom={(photo: PendingDevelopPhoto) => {
+                          setPendingDevelopPhoto(photo);
+                          setCurrentScreen('Darkroom');
+                      }}
                   />
               );
             case 'Album':
@@ -114,7 +139,7 @@ export default function App() {
   };
 
   // SetupScreen is rendered full-screen (outside SafeAreaView)
-  if (currentScreen === 'Setup') {
+  if (currentScreen === 'Setup' || currentScreen === 'Camera') {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
