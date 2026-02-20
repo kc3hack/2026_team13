@@ -14,19 +14,12 @@ import { CameraScreen } from './src/screens/CameraScreen';
 
 type Screen = 'Loading' | 'Setup' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom' | 'Camera';
 
-interface PendingDevelopPhoto {
-  id: number;
-  uri: string;
-  filmId: number;
-}
-
 interface SelectedFilm {
   type: string;
   id: number;
 }
 
 export default function App() {
-  const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('Loading');
   const [selectedFilm, setSelectedFilm] = useState<SelectedFilm | null>(null);
   const { startBGM, stopBGM } = useBGM();
@@ -118,10 +111,7 @@ export default function App() {
                       onOpenSettings={() => setCurrentScreen('Settings')}
                       onOpenImagePicker={() => setCurrentScreen('ImagePicker')}
                       onOpenAlbum={() => setCurrentScreen('Album')}
-                      onOpenDarkroom={() => {
-                        setPendingDevelopPhoto(null);
-                        setCurrentScreen('Darkroom');
-                      }}
+                      onOpenDarkroom={() => setCurrentScreen('Darkroom')}
                   onLogout={handleLogout}
                   />
               );
@@ -136,10 +126,6 @@ export default function App() {
               return (
                   <ImagePickerScreen 
                       onBack={() => setCurrentScreen('Home')}
-                      onGoDarkroom={(photo) => {
-                        setPendingDevelopPhoto(photo);
-                        setCurrentScreen('Darkroom');
-                      }}
                       onGoCamera={(filmType, filmId) => {
                         setSelectedFilm({ type: filmType, id: filmId });
                         setCurrentScreen('Camera');
@@ -154,27 +140,19 @@ export default function App() {
                       filmType={selectedFilm?.type}
                       filmId={selectedFilm?.id}
                   onBack={() => setCurrentScreen('ImagePicker')}
-                      onGoDarkroom={(photo: PendingDevelopPhoto) => {
-                          setPendingDevelopPhoto(photo);
-                          setCurrentScreen('Darkroom');
-                      }}
+                      onGoDarkroom={() => setCurrentScreen('Darkroom')}
                   />
               );
             case 'Album':
               return (
                 <AlbumScreen
                   onBack={() => setCurrentScreen('Home')}
-                  onGoDarkroom={(photo) => {
-                    setPendingDevelopPhoto(photo);
-                    setCurrentScreen('Darkroom');
-                  }}
                 />
               );
             case 'Darkroom':
               return (
                 <DarkroomScreen
                   onBack={() => setCurrentScreen('Home')}
-                  photo={pendingDevelopPhoto}
                 />
               );
           default:
