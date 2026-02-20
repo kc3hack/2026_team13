@@ -31,6 +31,10 @@ export const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
+  filmBadgeEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
   filmBadgeImage: {
     width: 18,
     height: 18,

@@ -1,114 +1,107 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, Modal, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { Audio } from 'expo-av'; //expoのAudioをインポート
-import { completeDevelopingSession, failDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri } from '../utils/sqlite';
+import { ActivityIndicator, BackHandler, Image, Platform, SafeAreaView, Text, TouchableOpacity, View, PanResponder, AppState, Alert, useWindowDimensions } from 'react-native';
+import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
+// ★ 修正: countDevelopingPhotos と 新しく作った countPendingPhotos をインポート
+import { completeDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri, getFilmInventory, countDevelopingPhotos, countPendingPhotos } from '../utils/sqlite';
 import { applyFilmEffectToPhoto } from '../utils/photoEffects';
-import { BlurView } from 'expo-blur';
-import { styles } from '../styles/DarkroomScreen.styles';
+import { useGithubCommits } from '../hooks/useGithubCommits';
+import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 
-// 現像処理の画面
+import { styles as albumStyles } from '../styles/AlbumScreen.styles';
+import { styles as darkroomStyles } from '../styles/DarkroomScreen.styles';
+import { DarkroomSkiaView } from '../components/DarkroomSkiaView';
+
 interface DarkroomScreenProps {
   onBack: () => void;
+  onGoSettings?: () => void;
 }
 
-const SESSION_SECONDS = 3600;
-const MAX_SLOTS = 5;
+const SESSION_SECONDS = 10;
+const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
 
 interface DevelopingPhoto {
   id: number;
   uri: string;
   filmId: number;
-  developingStartedAt: string | null;
 }
 
-const parseDbDateMs = (value: string | null): number | null => {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
-  const direct = new Date(normalized).getTime();
-  if (!Number.isNaN(direct)) {
-    return direct;
-  }
-
-  const fallback = new Date(`${normalized}Z`).getTime();
-  return Number.isNaN(fallback) ? null : fallback;
-};
-
-// 現像処理の画面コンポーネント
-export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
+export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSettings }) => {
   const [developingPhotos, setDevelopingPhotos] = useState<DevelopingPhoto[]>([]);
   const [isPreparing, setIsPreparing] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(SESSION_SECONDS);
-  const [sessionStartedAtMs, setSessionStartedAtMs] = useState<number | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
   const [isSessionStarted, setIsSessionStarted] = useState(false);
   const [isSessionCompleted, setIsSessionCompleted] = useState(false);
   const [completionMessage, setCompletionMessage] = useState('');
   const [isFinishingSession, setIsFinishingSession] = useState(false);
+  const [rightPanelDim, setRightPanelDim] = useState({ width: 0, height: 0 });
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
+  
+  // ★ 追加: INFO表示用のカウントステート
+  const [developingCount, setDevelopingCount] = useState(0);
+  const [totalPendingCount, setTotalPendingCount] = useState(0);
+
   const waterSoundRef = useRef<Audio.Sound | null>(null);
-  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const cancelProcessingRef = useRef(false);
   const finalizedSessionRef = useRef(false);
+  const { checkForCommits } = useGithubCommits();
 
-  const stopAndUnloadWaterSound = useCallback(async () => {
-    const currentSound = waterSoundRef.current;
+  const activePhoto = developingPhotos[0] || null;
+  const latestStateRef = useRef({ remainingSeconds, isPaused, activePhotoId: activePhoto?.id });
 
-    if (!currentSound) {
-      return;
-    }
+  useEffect(() => {
+    latestStateRef.current = { remainingSeconds, isPaused, activePhotoId: activePhoto?.id };
+  }, [remainingSeconds, isPaused, activePhoto?.id]);
 
-    waterSoundRef.current = null;
-
+  // ★ 追加: 枚数をDBから取得して更新する関数
+  const refreshPhotoCounts = useCallback(async () => {
     try {
-      await currentSound.stopAsync();
-    } catch {
-      // no-op
-    }
-
-    try {
-      await currentSound.unloadAsync();
-    } catch {
-      // no-op
+      const devCount = await countDevelopingPhotos();
+      const pendingCount = await countPendingPhotos();
+      setDevelopingCount(devCount);
+      setTotalPendingCount(pendingCount);
+    } catch (e) {
+      console.log('failed to fetch photo counts', e);
     }
   }, []);
 
-  const mapRowsToDevelopingPhotos = useCallback((rows: Awaited<ReturnType<typeof getDevelopingPhotos>>): DevelopingPhoto[] => {
-    return rows.slice(0, MAX_SLOTS).map((row) => ({
-      id: row.id,
-      uri: row.uri,
-      filmId: row.film_id,
-      developingStartedAt: row.developing_started_at ?? null,
-    }));
+  useEffect(() => {
+    const loadInventory = async () => {
+      const inv = await getFilmInventory();
+      setFilmInventory(inv);
+    };
+    loadInventory();
+  }, []);
+
+  const handleCheckCommits = async () => {
+    const result = await checkForCommits();
+    if (result) {
+      Alert.alert('コミットチェック', result.message);
+      const inv = await getFilmInventory();
+      setFilmInventory(inv);
+    }
+  };
+
+  const stopAndUnloadWaterSound = useCallback(async () => {
+    const currentSound = waterSoundRef.current;
+    if (!currentSound) return;
+    waterSoundRef.current = null;
+    try { await currentSound.stopAsync(); } catch {}
+    try { await currentSound.unloadAsync(); } catch {}
   }, []);
 
   const runPhotoEffects = useCallback(async (rows: DevelopingPhoto[]) => {
     cancelProcessingRef.current = false;
-
     for (const targetPhoto of rows) {
-      if (cancelProcessingRef.current) {
-        return;
-      }
-
+      if (cancelProcessingRef.current) return;
       try {
         const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
-        const effectType =
-          resolvedEffectType
-          ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
-            ? 'mono'
-            : targetPhoto.filmId === 2 || targetPhoto.filmId === 12
-              ? 'vivid'
-              : targetPhoto.filmId === 3 || targetPhoto.filmId === 13
-                ? 'retro'
-                : 'mono');
+        const effectType = resolvedEffectType ?? 'mono';
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelProcessingRef.current,
         });
-
-        if (cancelProcessingRef.current) {
-          return;
-        }
-
+        if (cancelProcessingRef.current) return;
         if (processedUri !== targetPhoto.uri) {
           await updatePhotoUri(targetPhoto.id, processedUri);
           setDevelopingPhotos((prev) => prev.map((item) => (item.id === targetPhoto.id ? { ...item, uri: processedUri } : item)));
@@ -120,10 +113,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
   }, []);
 
   const finalizeSession = useCallback(async (rows: DevelopingPhoto[]) => {
-    if (finalizedSessionRef.current || rows.length === 0) {
-      return;
-    }
-
+    if (finalizedSessionRef.current || rows.length === 0) return;
     finalizedSessionRef.current = true;
     setIsFinishingSession(true);
 
@@ -131,399 +121,311 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
       await runPhotoEffects(rows);
       await completeDevelopingSession(rows.map((item) => item.id));
       setRemainingSeconds(0);
-      setCompletionMessage('現像が完了しました。アルバムを確認してください');
+      setCompletionMessage('現像完了。アルバムを確認してください');
       setIsSessionCompleted(true);
+      if (activePhoto) delete globalDarkroomCache[activePhoto.id];
+      await refreshPhotoCounts(); // ★ 完了時にカウント更新
     } catch (error) {
       console.log('failed to finalize developing session', error);
     } finally {
       setIsFinishingSession(false);
       await stopAndUnloadWaterSound();
     }
-  }, [runPhotoEffects, stopAndUnloadWaterSound]);
-
-  const computeRemainingSeconds = useCallback((startedAtMs: number): number => {
-    const elapsed = Math.floor((Date.now() - startedAtMs) / 1000);
-    return Math.max(0, SESSION_SECONDS - elapsed);
-  }, []);
+  }, [runPhotoEffects, stopAndUnloadWaterSound, activePhoto, refreshPhotoCounts]);
 
   useEffect(() => {
     let isActive = true;
     setIsPreparing(true);
     setIsSessionStarted(false);
     setIsSessionCompleted(false);
-    setCompletionMessage('');
     finalizedSessionRef.current = false;
 
     const loadSession = async () => {
       try {
-        const developing = await getDevelopingPhotos();
+        await refreshPhotoCounts(); // ★ 初期ロード時にカウント更新
 
-        if (!isActive) {
-          return;
-        }
+        const developing = await getDevelopingPhotos();
+        if (!isActive) return;
 
         if (developing.length > 0) {
-          const sessionRows = mapRowsToDevelopingPhotos(developing);
-          setDevelopingPhotos(sessionRows);
+          setDevelopingPhotos([{ id: developing[0].id, uri: developing[0].uri, filmId: developing[0].film_id }]);
           setIsSessionStarted(true);
-
-          const firstStart = sessionRows
-            .map((item) => parseDbDateMs(item.developingStartedAt))
-            .filter((value): value is number => value !== null)
-            .sort((left, right) => left - right)[0] ?? Date.now();
-
-          setSessionStartedAtMs(firstStart);
-          const nextRemaining = computeRemainingSeconds(firstStart);
-          setRemainingSeconds(nextRemaining);
-
-          if (nextRemaining === 0) {
-            void finalizeSession(sessionRows);
+          
+          const cached = globalDarkroomCache[developing[0].id];
+          if (cached) {
+             setRemainingSeconds(cached.remaining);
+             setIsPaused(cached.isPaused);
+          } else {
+             setRemainingSeconds(SESSION_SECONDS);
+             setIsPaused(false);
           }
           return;
         }
 
-        const undeveloped = await getUndevelopedPhotosOldest(MAX_SLOTS);
+        const undeveloped = await getUndevelopedPhotosOldest(1);
+        if (!isActive) return;
 
-        if (!isActive) {
-          return;
+        if (undeveloped.length > 0) {
+           setDevelopingPhotos([{ id: undeveloped[0].id, uri: undeveloped[0].uri, filmId: undeveloped[0].film_id }]);
+        } else {
+           setDevelopingPhotos([]);
+           setCompletionMessage('現像対象の写真がありません');
         }
-
-        const waitingRows = undeveloped.slice(0, MAX_SLOTS).map((row) => ({
-          id: row.id,
-          uri: row.uri,
-          filmId: row.film_id,
-          developingStartedAt: null,
-        }));
-        setDevelopingPhotos(waitingRows);
-        setSessionStartedAtMs(null);
         setRemainingSeconds(SESSION_SECONDS);
         setIsSessionStarted(false);
-
-        if (waitingRows.length === 0) {
-          setCompletionMessage('現像対象の写真がありません');
-        } else {
-          setCompletionMessage('現像開始ボタンを押してください');
-        }
       } catch (error) {
         console.log('failed to load darkroom session', error);
       } finally {
-        if (isActive) {
-          setIsPreparing(false);
-        }
+        if (isActive) setIsPreparing(false);
       }
     };
-
     void loadSession();
-
-    return () => {
-      isActive = false;
-    };
-  }, [computeRemainingSeconds, finalizeSession, mapRowsToDevelopingPhotos]);
+    return () => { isActive = false; };
+  }, [refreshPhotoCounts]);
 
   useEffect(() => {
-    if (!isSessionStarted || !sessionStartedAtMs || isSessionCompleted) {
-      return;
-    }
-
+    if (!isSessionStarted || isSessionCompleted || isPaused) return;
     const timer = setInterval(() => {
-      const next = computeRemainingSeconds(sessionStartedAtMs);
-      setRemainingSeconds(next);
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [computeRemainingSeconds, isSessionCompleted, isSessionStarted, sessionStartedAtMs]);
+  }, [isSessionStarted, isSessionCompleted, isPaused]);
 
   useEffect(() => {
-    if (!isSessionStarted || remainingSeconds > 0 || isSessionCompleted || isFinishingSession || developingPhotos.length === 0) {
-      return;
+    if (isSessionStarted && remainingSeconds === 0 && !isSessionCompleted && !isFinishingSession && developingPhotos.length > 0) {
+      void finalizeSession(developingPhotos);
     }
+  }, [remainingSeconds, isSessionStarted, isSessionCompleted, isFinishingSession, developingPhotos, finalizeSession]);
 
-    void finalizeSession(developingPhotos);
-  }, [developingPhotos, finalizeSession, isFinishingSession, isSessionCompleted, isSessionStarted, remainingSeconds]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "background" || nextState === "inactive") {
+         if (isSessionStarted && !isSessionCompleted) setIsPaused(true);
+      }
+    });
+    return () => subscription.remove();
+  }, [isSessionStarted, isSessionCompleted]);
 
-  const shouldPlayWaterSound = isSessionStarted && developingPhotos.length > 0 && remainingSeconds > 0 && !isSessionCompleted;
+  useEffect(() => {
+    return () => {
+      cancelProcessingRef.current = true;
+      const { activePhotoId, remainingSeconds, isPaused } = latestStateRef.current;
+      if (activePhotoId && remainingSeconds > 0) {
+          globalDarkroomCache[activePhotoId] = { remaining: remainingSeconds, isPaused: true };
+      }
+      void stopAndUnloadWaterSound();
+    };
+  }, [stopAndUnloadWaterSound]);
 
   const handleStartDeveloping = useCallback(() => {
-    if (isSessionStarted || isSessionCompleted || developingPhotos.length === 0) {
-      return;
-    }
-
+    if (isSessionStarted || isSessionCompleted || !activePhoto) return;
     void (async () => {
       try {
         setIsPreparing(true);
-        setCompletionMessage('');
-        finalizedSessionRef.current = false;
-
-        const targetIds = developingPhotos.slice(0, MAX_SLOTS).map((item) => item.id);
-        const startedIds = await startDevelopingSession(targetIds);
-
-        if (startedIds.length === 0) {
-          setCompletionMessage('現像を開始できる写真がありません');
-          return;
+        const startedIds = await startDevelopingSession([activePhoto.id]);
+        if (startedIds.length > 0) {
+          setIsSessionStarted(true);
+          setIsPaused(false);
+          setCompletionMessage('');
+          await refreshPhotoCounts(); // ★ 開始時にカウント更新
         }
-
-        const refreshedDeveloping = await getDevelopingPhotos();
-        const sessionRows = mapRowsToDevelopingPhotos(
-          refreshedDeveloping.filter((item) => startedIds.includes(item.id)),
-        );
-
-        if (sessionRows.length === 0) {
-          setCompletionMessage('現像を開始できる写真がありません');
-          return;
-        }
-
-        const firstStart = sessionRows
-          .map((item) => parseDbDateMs(item.developingStartedAt))
-          .filter((value): value is number => value !== null)
-          .sort((left, right) => left - right)[0] ?? Date.now();
-
-        setDevelopingPhotos(sessionRows);
-        setSessionStartedAtMs(firstStart);
-        setRemainingSeconds(computeRemainingSeconds(firstStart));
-        setIsSessionStarted(true);
-      } catch (error) {
-        console.log('failed to start developing session', error);
       } finally {
         setIsPreparing(false);
       }
     })();
-  }, [computeRemainingSeconds, developingPhotos, isSessionCompleted, isSessionStarted, mapRowsToDevelopingPhotos]);
+  }, [activePhoto, isSessionCompleted, isSessionStarted, refreshPhotoCounts]);
+
+  const togglePause = () => {
+      Haptics.selectionAsync();
+      setIsPaused(!isPaused);
+  };
+
+  const shouldPlayWaterSound = isSessionStarted && remainingSeconds > 0 && !isSessionCompleted && !isPaused;
 
   useEffect(() => {
     let isMounted = true;
-
     const syncWaterSound = async () => {
       if (!shouldPlayWaterSound) {
         await stopAndUnloadWaterSound();
         return;
       }
-
-      if (waterSoundRef.current) {
-        return;
-      }
-
+      if (waterSoundRef.current) return;
       try {
         const { sound } = await Audio.Sound.createAsync(
           require('../../assets/sounds/water_asmr.mp3'),
-          {
-            shouldPlay: true,
-            isLooping: true,
-          },
+          { shouldPlay: true, isLooping: true },
         );
-
         if (!isMounted) {
           await sound.unloadAsync();
           return;
         }
-
         waterSoundRef.current = sound;
       } catch (error) {
-        console.warn('水音ASMRの再生開始に失敗しました', error);
+        console.warn('水音ASMRの再生に失敗しました', error);
       }
     };
-
     void syncWaterSound();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
     const minutes = Math.floor((remainingSeconds % 3600) / 60);
     const seconds = remainingSeconds % 60;
-
-    return [hours, minutes, seconds]
-      .map((value) => value.toString().padStart(2, '0'))
-      .join(':');
+    return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':');
   }, [remainingSeconds]);
 
-  const slots = useMemo(() => {
-    const items: Array<DevelopingPhoto | null> = [...developingPhotos];
-    while (items.length < MAX_SLOTS) {
-      items.push(null);
-    }
-    return items;
-  }, [developingPhotos]);
-
-  const canShowBackButton =
-    !isPreparing &&
-    !showExitConfirmModal &&
-    !isFinishingSession;
-
-  const handleBackPress = () => {
-    setShowExitConfirmModal(true);
-  };
-
-  const handleConfirmExit = useCallback(() => {
-    const developingIds = developingPhotos.map((item) => item.id);
-    cancelProcessingRef.current = true;
-    setShowExitConfirmModal(false);
-
-    void (async () => {
-      if (isSessionStarted && developingIds.length > 0 && remainingSeconds > 0 && !isSessionCompleted) {
-        await failDevelopingSession(developingIds).catch((error) => {
-          console.log('failed to rollback developing session', error);
-        });
-      }
-      await stopAndUnloadWaterSound();
-      onBack();
-    })();
-  }, [developingPhotos, isSessionCompleted, isSessionStarted, onBack, remainingSeconds, stopAndUnloadWaterSound]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (canShowBackButton) {
-        handleBackPress();
-      }
-      return true;
-    });
-
-    return () => subscription.remove();
-  }, [canShowBackButton]);
-
-  useEffect(() => {
-    return () => {
-      cancelProcessingRef.current = true;
-      void stopAndUnloadWaterSound();
-    };
-  }, [stopAndUnloadWaterSound]);
-
-  const renderSlot = (slot: DevelopingPhoto | null, index: number) => {
-    if (!slot) {
-      return (
-        <View key={`empty-${index}`} style={styles.slotCard}>
-          <View style={styles.emptySlot}>
-            <Text style={styles.emptySlotTitle}>Empty</Text>
-            <Text style={styles.emptySlotSub}>空きスロット</Text>
-          </View>
-        </View>
-      );
-    }
-
-    const isMaskVisible = !isSessionCompleted;
-    const statusText = isSessionCompleted ? '現像完了' : isSessionStarted ? '現像中' : '現像開始前';
-
-    return (
-      <View key={slot.id} style={styles.slotCard}>
-        <View style={styles.slotImageWrap}>
-          <Image source={{ uri: slot.uri }} style={styles.slotImage} />
-          {isMaskVisible && (
-            <BlurView
-              intensity={56}
-              tint="dark"
-              experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-              style={styles.slotBlur}
-            />
-          )}
-        </View>
-        <Text style={styles.slotStatus}>{statusText}</Text>
-      </View>
-    );
-  };
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        const isVerticalSwipe = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        const isSwipingDown = gestureState.dy > 20;
+        return isVerticalSwipe && isSwipingDown;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 50) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onBack();
+        }
+      },
+    })
+  ).current;
 
   if (isPreparing) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View pointerEvents="none" style={styles.glowLarge} />
-        <View pointerEvents="none" style={styles.glowSmall} />
-
-        <View style={styles.loadingWrap}>
+      <SafeAreaView style={albumStyles.container}>
+        <View style={darkroomStyles.loadingWrap}>
           <ActivityIndicator size="large" color="#8B0000" />
-          <Text style={styles.loadingText}>暗室を準備中...</Text>
+          <Text style={darkroomStyles.loadingText}>LOADING DARKROOM...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View pointerEvents="none" style={styles.glowLarge} />
-      <View pointerEvents="none" style={styles.glowSmall} />
+  const isMaskVisible = !isSessionCompleted;
 
-      <View style={styles.mainContent}>
-        {canShowBackButton && (
-          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-            <Text style={styles.backButtonText}>← Back</Text>
+  return (
+    <SafeAreaView style={albumStyles.container} {...swipePanResponder.panHandlers}>
+      <View style={albumStyles.topBar}>
+        {FILM_TYPES.map((type) => {
+          const meta = FILM_META[type];
+          return (
+            <View key={type} style={albumStyles.filmBadge}>
+              <Text style={albumStyles.filmBadgeEmoji}>{meta.emoji}</Text>
+              <Text style={albumStyles.filmBadgeCount}>{filmInventory[type]}</Text>
+            </View>
+          );
+        })}
+        <TouchableOpacity style={albumStyles.topBarButton} onPress={handleCheckCommits}>
+          <Text style={albumStyles.topBarButtonText}>↻</Text>
+        </TouchableOpacity>
+        {onGoSettings && (
+          <TouchableOpacity style={albumStyles.topBarButton} onPress={onGoSettings}>
+            <Text style={albumStyles.topBarButtonText}>⚙</Text>
           </TouchableOpacity>
         )}
-
-        <View style={styles.slotsWrap}>
-          <Text style={styles.pendingTitle}>現像タンク（最大5）</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={215}
-            contentContainerStyle={styles.slotsScrollContent}
-            style={styles.slotsScroll}
-          >
-            {slots.map(renderSlot)}
-          </ScrollView>
-        </View>
-
-        <View style={[styles.timerWrap, { paddingBottom: Platform.OS === 'ios' ? 44 : 24 }]}> 
-          <Text style={styles.timerLabel}>DARKROOM SESSION</Text>
-          <Text style={styles.processingText}>
-            {isSessionCompleted
-              ? '現像完了'
-              : isSessionStarted
-                ? '現像中'
-                : developingPhotos.length > 0
-                  ? '準備完了（待機）'
-                  : '現像対象なし'}
-          </Text>
-          <Text style={styles.timerText}>{displayTime}</Text>
-          {!isSessionStarted && !isSessionCompleted && developingPhotos.length > 0 && (
-            <TouchableOpacity
-              style={[styles.saveButton, { marginTop: 16, marginBottom: 0 }]}
-              onPress={handleStartDeveloping}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.saveButtonText}>現像を開始する</Text>
-            </TouchableOpacity>
-          )}
-          {isFinishingSession && <Text style={styles.processingText}>現像仕上げ中...</Text>}
-          {!isFinishingSession && completionMessage.length > 0 && <Text style={styles.processingText}>{completionMessage}</Text>}
-        </View>
       </View>
 
-      <Modal
-        visible={showExitConfirmModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowExitConfirmModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>暗室を終了</Text>
-            <Text style={styles.exitConfirmMessage}>
-              今暗室を出ると光が入ってしまい、現像中の写真はすべて失敗します。本当に出ますか？
-            </Text>
+      <View style={albumStyles.mainLayout}>
+        <View style={albumStyles.leftPanel}>
+          <View style={albumStyles.grip}>
+            <View style={albumStyles.navSquare} />
+            <View style={albumStyles.gripLine} />
+            <View style={albumStyles.navSquare} />
+            <View style={albumStyles.gripLine} />
+            <View style={[albumStyles.navSquare, albumStyles.navSquareActive]} />
+          </View>
 
-            <TouchableOpacity
-              style={[styles.saveButton, styles.exitConfirmDangerButton]}
-              onPress={handleConfirmExit}
-            >
-              <Text style={styles.saveButtonText}>終了する</Text>
-            </TouchableOpacity>
+          <View style={albumStyles.dashboard}>
+            <Text style={albumStyles.systemText}>DEVIT  //  DARKROOM</Text>
 
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowExitConfirmModal(false)}
-            >
-              <Text style={styles.closeButtonText}>キャンセル</Text>
-            </TouchableOpacity>
+            <View style={albumStyles.instruments}>
+              
+              {(isSessionStarted && !isSessionCompleted && !isFinishingSession) && (
+                <>
+                  <Text style={albumStyles.label}>[ TIME LEFT ]</Text>
+                  <Text style={[
+                    darkroomStyles.statusValue, 
+                    { 
+                      fontSize: 48,           // 7セグメントが映えるように大きく
+                      fontWeight: 'normal',   // デジタルフォントはnormal推奨
+                      color: '#D41414', 
+                      letterSpacing: 2, 
+                      marginBottom: 24,
+                      fontFamily: 'DSEG7Classic-Regular', // ★ 7セグメントフォント（※別途読み込みが必要）
+                      textShadowColor: 'rgba(212, 20, 20, 0.8)',
+                      textShadowOffset: { width: 0, height: 0 },
+                      textShadowRadius: 10,
+                    },
+                    isPaused && { color: '#ffaa00', textShadowColor: 'rgba(255, 170, 0, 0.8)' }
+                  ]}>
+                    {displayTime}
+                  </Text>
+                </>
+              )}
+
+              {/* メッセージ表示（完了時など） */}
+              {(!isFinishingSession && completionMessage.length > 0) && (
+                <Text style={[darkroomStyles.infoValue, { marginBottom: 24, color: '#C5B7B7' }]}>
+                  {completionMessage}
+                </Text>
+              )}
+
+              {/* ★ 変更: INFO を (現像中) / (未現像全体) に変更 */}
+              <Text style={albumStyles.label}>[ INFO: DEV / TOTAL ]</Text>
+              <Text style={[darkroomStyles.infoValue, { fontSize: 22, letterSpacing: 4, color: '#fff' }]}>
+                {developingCount} / {totalPendingCount}
+              </Text>
+
+              <Text style={[albumStyles.label, { marginTop: 32 }]}>[ ACTION ]</Text>
+              <View style={albumStyles.buttonRow}>
+                {!isSessionStarted && !isSessionCompleted && activePhoto && (
+                  <TouchableOpacity style={albumStyles.dashboardBtn} onPress={handleStartDeveloping}>
+                    <Text style={darkroomStyles.actionBtnText}>START DEVELOPING</Text>
+                  </TouchableOpacity>
+                )}
+                {isSessionStarted && !isSessionCompleted && (
+                  <TouchableOpacity 
+                    style={[albumStyles.dashboardBtn, isPaused && albumStyles.dashboardBtnActive]} 
+                    onPress={togglePause}
+                  >
+                    <Text style={[darkroomStyles.actionBtnText, isPaused && albumStyles.btnTextActive]}>
+                      {isPaused ? 'RESUME' : 'PAUSE'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {isSessionCompleted && (
+                  <View style={albumStyles.dashboardBtn}>
+                    <Text style={darkroomStyles.actionBtnText}>CHECK ALBUM</Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
         </View>
-      </Modal>
+
+        <View style={[albumStyles.rightPanel, darkroomStyles.darkroomRightPanel]} onLayout={(e) => setRightPanelDim(e.nativeEvent.layout)}>
+          {rightPanelDim.width > 0 && activePhoto ? (
+            <View style={darkroomStyles.fullscreenContent}>
+              {isMaskVisible && (
+                <View style={darkroomStyles.fullscreenSkiaWrap}>
+                  <DarkroomSkiaView photoUri={activePhoto.uri} width={rightPanelDim.width} height={rightPanelDim.height} />
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={darkroomStyles.emptyBackground}>
+              <Text style={darkroomStyles.emptyBackgroundText}>NO PHOTO</Text>
+            </View>
+          )}
+        </View>
+      </View>
     </SafeAreaView>
   );
 };
-
-
