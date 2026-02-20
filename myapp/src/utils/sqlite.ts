@@ -218,6 +218,13 @@ export const countDevelopingPhotos = async (): Promise<number> => {
   return row?.count ?? 0;
 };
 
+export const countPendingPhotos = async (): Promise<number> => {
+  const row = await withDatabaseRetry((db) => db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM photos WHERE status IN ('undeveloped', 'developing');",
+  ));
+  return row?.count ?? 0;
+};
+
 export const getUndevelopedPhotosOldest = async (limit: number): Promise<PhotoWithFilmName[]> => {
   return withDatabaseRetry((db) => db.getAllAsync<PhotoWithFilmName>(
     `SELECT
