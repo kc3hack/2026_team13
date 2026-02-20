@@ -1,33 +1,75 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import * as ScreenOrientation from 'expo-screen-orientation'; // ★ 画面回転用
-import { consumeFilm, addPhoto } from '../utils/sqlite';
+import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
+import { useGithubCommits } from '../hooks/useGithubCommits';
+import { FilmInventory, FILM_META, FILM_TYPES, RewardFilmType } from '../types';
 import { styles } from '../styles/CameraScreen.styles';
+
+const FILM_ID_MAP: Record<RewardFilmType, number> = { mono: 11, vivid: 12, retro: 13 };
 
 interface CameraScreenProps {
     filmType?: string;
     filmId?: number;
     onBack: () => void;
     onGoDarkroom: (photo: { id: number; uri: string; filmId: number }) => void;
+    onGoAlbum?: () => void;
+    onGoDarkroomScreen?: () => void;
+    onGoSettings?: () => void;
 }
 
-export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, onBack, onGoDarkroom }) => {
+export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, onBack, onGoDarkroom, onGoAlbum, onGoDarkroomScreen, onGoSettings }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const [isShooting, setIsShooting] = useState(false);
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
+  const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
+    filmType && FILM_TYPES.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
+  );
+
+  const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
+  const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
   
   const cameraRef = useRef<CameraView>(null);
+  const { checkForCommits } = useGithubCommits();
 
   useEffect(() => {
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-
-    return () => {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    const loadInventory = async () => {
+      const inv = await getFilmInventory();
+      setFilmInventory(inv);
     };
+    loadInventory();
   }, []);
+
+  const handleCheckCommits = async () => {
+    const result = await checkForCommits();
+    if (result) {
+      Alert.alert('コミットチェック', result.message);
+      const inv = await getFilmInventory();
+      setFilmInventory(inv);
+    }
+  };
+
+  // Swipe gesture: down → Album, up → Darkroom
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 30,
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 80 && onGoAlbum) {
+          // Swipe down → Album
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onGoAlbum();
+        } else if (gestureState.dy < -80 && onGoDarkroomScreen) {
+          // Swipe up → Darkroom
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onGoDarkroomScreen();
+        }
+      },
+    })
+  ).current;
 
   if (!permission) return <View />;
   if (!permission.granted) {
@@ -52,7 +94,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   };
 
   const takePicture = async () => {
-    if (!cameraRef.current || isShooting) return;
+    if (!cameraRef.current || isShooting || !canShoot || !selectedFilm || !activeFilmId) return;
 
     try {
       setIsShooting(true);
@@ -60,20 +102,19 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
       
       const photoData = await cameraRef.current.takePictureAsync();
       
-      if (photoData && photoData.uri && filmId && filmType) {
-        const consumed = await consumeFilm(filmType as any);
+      if (photoData && photoData.uri) {
+        const consumed = await consumeFilm(selectedFilm);
         if (!consumed) {
            Alert.alert('エラー', 'フィルムが不足しています');
-           onBack();
+           const inv = await getFilmInventory();
+           setFilmInventory(inv);
            return;
         }
 
-        const photoId = await addPhoto(photoData.uri, filmId, 'undeveloped');
-        
-        Alert.alert('撮影完了', '今すぐ暗室（現像）に行きますか？', [
-          { text: 'まだ撮る', style: 'cancel' },
-          { text: '暗室へ', onPress: () => onGoDarkroom({ id: photoId, uri: photoData.uri, filmId: filmId }) }
-        ]);
+        const inv = await getFilmInventory();
+        setFilmInventory(inv);
+
+        await addPhoto(photoData.uri, activeFilmId, 'undeveloped');
       }
     } catch (error) {
       console.log("撮影エラー:", error);
@@ -84,36 +125,88 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>{'< ABORT'}</Text>
-      </TouchableOpacity>
+    <SafeAreaView style={styles.container} {...swipePanResponder.panHandlers}>
+      {/* Top bar: film inventory + refresh + settings */}
+      <View style={styles.topBar}>
+        {FILM_TYPES.map((type) => {
+          const meta = FILM_META[type];
+          return (
+            <View key={type} style={styles.filmBadge}>
+              <Image source={meta.image} style={styles.filmBadgeImage} />
+              <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
+            </View>
+          );
+        })}
+        <TouchableOpacity style={styles.topBarButton} onPress={handleCheckCommits}>
+          <Text style={styles.topBarButtonText}>↻</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.topBarButton} onPress={onGoSettings}>
+          <Text style={styles.topBarButtonText}>⚙</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.mainLayout}>
-        <View style={styles.dashboard}>
-          <Text style={styles.systemText}>DEVIT // SYSTEM_READY</Text>
-          
-          <View style={styles.instruments}>
-            <Text style={styles.label}>[ FILM_TYPE ]</Text>
-            <Text style={styles.valueHighlight}>{filmType ? filmType.toUpperCase() : 'UNKNOWN'}</Text>
-            
-            <View style={styles.row}>
-              <View>
-                <Text style={styles.label}>[ FLASH ]</Text>
-                <TouchableOpacity onPress={toggleFlash} style={styles.dashboardBtn}>
-                  <Text style={styles.btnText}>{flash.toUpperCase()}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+        {/* Left panel: grip + dashboard (matching AlbumScreen layout) */}
+        <View style={styles.leftPanel}>
+          <View style={styles.gripDecor}>
+            <View style={styles.navSquare} />
+            <View style={styles.gripLine} />
+            <View style={[styles.navSquare, styles.navSquareActive]} />
+            <View style={styles.gripLine} />
+            <View style={styles.navSquare} />
+          </View>
 
-            <View style={styles.controlsRow}>
-              {/* ZOOM コントロール */}
-              <View>
-                <Text style={styles.label}>[ ZOOM_LEVEL ]</Text>
-                <View style={styles.zoomControls}>
-                  <TouchableOpacity onPress={() => handleZoom(false)} style={styles.dashboardBtn}><Text style={styles.btnText}>-</Text></TouchableOpacity>
-                  <Text style={styles.valueText}>{(zoom * 10).toFixed(1)}</Text>
-                  <TouchableOpacity onPress={() => handleZoom(true)} style={styles.dashboardBtn}><Text style={styles.btnText}>+</Text></TouchableOpacity>
+          <View style={styles.dashboard}>
+            <Text style={styles.systemText}>DEVIT  //  SYSTEM_READY</Text>
+            
+            <View style={styles.instruments}>
+              <Text style={styles.label}>[ FILM_TYPE ]</Text>
+              <View style={styles.filmSelectRow}>
+                {FILM_TYPES.map((type) => {
+                  const meta = FILM_META[type];
+                  const isSelected = selectedFilm === type;
+                  const count = filmInventory[type];
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.filmSelectBtn, isSelected && styles.filmSelectBtnActive]}
+                      onPress={() => {
+                        setSelectedFilm(type);
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Image source={meta.image} style={styles.filmSelectImage} />
+                      <Text style={[styles.filmSelectLabel, isSelected && styles.filmSelectLabelActive]}>
+                        {meta.label}
+                      </Text>
+                      <Text style={[styles.filmSelectCount, count === 0 && styles.filmSelectCountEmpty]}>
+                        x{count}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {selectedFilm && filmInventory[selectedFilm] === 0 && (
+                <Text style={styles.warningText}>⚠ フィルムがありません</Text>
+              )}
+              
+              <View style={styles.row}>
+                <View>
+                  <Text style={styles.label}>[ FLASH ]</Text>
+                  <TouchableOpacity onPress={toggleFlash} style={styles.dashboardBtn}>
+                    <Text style={styles.btnText}>{flash.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.controlsRow}>
+                <View>
+                  <Text style={styles.label}>[ ZOOM_LEVEL ]</Text>
+                  <View style={styles.zoomControls}>
+                    <TouchableOpacity onPress={() => handleZoom(false)} style={styles.dashboardBtn}><Text style={styles.btnText}>-</Text></TouchableOpacity>
+                    <Text style={styles.valueText}>{(zoom * 10).toFixed(1)}</Text>
+                    <TouchableOpacity onPress={() => handleZoom(true)} style={styles.dashboardBtn}><Text style={styles.btnText}>+</Text></TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </View>
@@ -121,27 +214,42 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
         </View>
 
         <View style={styles.cameraRig}>
-          
           <View style={styles.previewContainer}>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              zoom={zoom}
-              flash={flash}
-              ref={cameraRef}
-            />
-            <View style={styles.crosshairVertical} />
-            <View style={styles.crosshairHorizontal} />
-            <View style={styles.recDot} />
+            {selectedFilm ? (
+              <>
+                <CameraView
+                  style={styles.camera}
+                  facing="back"
+                  zoom={zoom}
+                  flash={flash}
+                  ref={cameraRef}
+                />
+                <View style={styles.crosshairVertical} />
+                <View style={styles.crosshairHorizontal} />
+                <View style={styles.recDot} />
+              </>
+            ) : (
+              <View style={styles.cameraOff}>
+                <Text style={styles.cameraOffText}>NO FILM</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.grip}>
             <TouchableOpacity 
-              style={[styles.shutterButton, isShooting && { borderColor: '#ff4444' }]}
+              style={[
+                styles.shutterButton,
+                isShooting && { borderColor: '#ff4444' },
+                !canShoot && styles.shutterDisabled,
+              ]}
               onPress={takePicture}
-              disabled={isShooting}
+              disabled={isShooting || !canShoot}
             >
-              <View style={[styles.shutterInner, isShooting && { backgroundColor: '#cc0000' }]} />
+              <View style={[
+                styles.shutterInner,
+                isShooting && { backgroundColor: '#cc0000' },
+                !canShoot && styles.shutterInnerDisabled,
+              ]} />
             </TouchableOpacity>
           </View>
 

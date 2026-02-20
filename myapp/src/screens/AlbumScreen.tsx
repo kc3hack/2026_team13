@@ -20,25 +20,30 @@ import {
 import { BlurView } from 'expo-blur';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
-import { deletePhoto, getPhotosByStatus, PhotoWithFilmName } from '../utils/sqlite';
-import { getMenuBackgroundMode, MenuBackgroundMode } from '../utils/storage';
+import * as Haptics from 'expo-haptics';
+import { deletePhoto, getPhotosByStatus, PhotoWithFilmName, getFilmInventory } from '../utils/sqlite';
+import { useGithubCommits } from '../hooks/useGithubCommits';
+import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 import { styles } from '../styles/AlbumScreen.styles';
 
 interface AlbumScreenProps {
   onBack: () => void;
+  onGoCamera: () => void;
+  onGoSettings: () => void;
   onGoDarkroom: (photo: { id: number; uri: string; filmId: number }) => void;
 }
 
 type PhotoTab = 'developed' | 'undeveloped';
 type SortOrder = 'newest' | 'oldest' | 'film';
 
-const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList) => {
-  React.useEffect(effect, deps);
-};
+export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, onGoSettings, onGoDarkroom }) => {
+  const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList) => {
+    React.useEffect(effect, deps);
+  };
 
-export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }) => {
+//export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
   const GRID_COLUMNS = 3;
-  const GRID_SIDE_PADDING = 20;
+  const GRID_SIDE_PADDING = 12;
   const GRID_GAP = 8;
   const DETAIL_ZOOM_MIN = 1;
   const DETAIL_ZOOM_MAX = 3;
@@ -46,9 +51,9 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
   const sortOrderLabelMap: Record<SortOrder, string> = {
     newest: '新しい順',
     oldest: '古い順',
-    film: '種類別',
+    film: '種別順',
   };
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const detailPhotoGap = 16;
   const detailScrollInterval = screenWidth + detailPhotoGap;
   const [photos, setPhotos] = useState<PhotoWithFilmName[]>([]);
@@ -70,16 +75,21 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
-  const [backgroundMode, setBackgroundMode] = useState<MenuBackgroundMode>('light');
-  const isDarkBackground = backgroundMode === 'dark';
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
 
+  const { checkForCommits } = useGithubCommits();
+
+  // Load film inventory
   useEffect(() => {
-    void (async () => {
-      const mode = await getMenuBackgroundMode();
-      setBackgroundMode(mode);
-    })();
+    const loadInventory = async () => {
+      const inv = await getFilmInventory();
+      setFilmInventory(inv);
+    };
+    loadInventory();
   }, []);
 
+  // Thumbnail size: fit 3 columns in the right panel, and also respect screen height
+  const rightPanelWidth = screenWidth * 0.58;
   useEffect(() => {
     detailZoomScaleRef.current = detailZoomScale;
   }, [detailZoomScale]);
@@ -129,9 +139,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
 
   const thumbnailSize = useMemo(() => {
     const totalGap = GRID_GAP * (GRID_COLUMNS - 1);
-    const availableWidth = screenWidth - GRID_SIDE_PADDING * 2 - totalGap;
-    return Math.floor(availableWidth / GRID_COLUMNS);
-  }, [screenWidth]);
+    const availableWidth = rightPanelWidth - GRID_SIDE_PADDING * 2 - totalGap;
+    const sizeByWidth = Math.floor(availableWidth / GRID_COLUMNS);
+    // Also cap by screen height so a row doesn't overflow vertically
+    const maxByHeight = Math.floor((screenHeight - 80) / 2.4);
+    return Math.min(sizeByWidth, maxByHeight);
+  }, [rightPanelWidth, screenHeight]);
 
   const sortedPhotos = useMemo(() => {
     const getPhotoTime = (photo: PhotoWithFilmName): number => {
@@ -171,26 +184,14 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     [sortedPhotos, selectedPhotoIds],
   );
 
-
-  const rotateSortOrder = useCallback(() => {
-    setSortOrder((prev) => {
-      const currentIndex = sortOrderOptions.indexOf(prev);
-      const nextIndex = (currentIndex + 1) % sortOrderOptions.length;
-      return sortOrderOptions[nextIndex];
-    });
-  }, [sortOrderOptions]);
-
   const load = useCallback(async (status: PhotoTab) => {
     const list = await getPhotosByStatus(status);
     setPhotos(list);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load(selectedTab);
-    }, [load, selectedTab]),
-    [load, selectedTab],
-  );
+  useEffect(() => {
+    void load(selectedTab);
+  }, [load, selectedTab]);
 
   const closeSelectedPhoto = useCallback(() => {
     setSelectedPhoto(null);
@@ -350,23 +351,22 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       return handleBackLikeAction();
     });
-
     return () => subscription.remove();
   }, [handleBackLikeAction]);
 
-  const iosEdgeBackPanResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (evt, gestureState) => (
-      Platform.OS === 'ios'
-      && evt.nativeEvent.pageX <= 24
-      && gestureState.dx > 12
-      && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
-    ),
-    onPanResponderRelease: (_, gestureState) => {
-      if (gestureState.dx > 50) {
-        handleBackLikeAction();
-      }
-    },
-  }), [handleBackLikeAction]);
+  // Swipe up → Camera
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && gestureState.dy < -30,
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy < -80) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onGoCamera();
+        }
+      },
+    })
+  ).current;
 
   const formattedCreatedAt = useMemo(() => {
     if (!menuTargetPhoto?.created_at) {
@@ -395,16 +395,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
         },
       },
     ]);
-  };
-
-  const handleDevelop = (photo: PhotoWithFilmName) => {
-    closeActionMenu();
-    closeSelectedPhoto();
-    onGoDarkroom({
-      id: photo.id,
-      uri: photo.uri,
-      filmId: photo.film_id,
-    });
   };
 
   const resolveSavableUri = useCallback(async (uri: string): Promise<string> => {
@@ -532,6 +522,15 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
     ]);
   }, [load, selectedPhotoIds, selectedTab]);
 
+const handleCheckCommits = async () => {
+    const result = await checkForCommits();
+    if (result) {
+      Alert.alert('コミットチェック', result.message);
+      const inv = await getFilmInventory();
+      setFilmInventory(inv);
+    }
+  };
+
   const renderItem = ({ item, index }: { item: PhotoWithFilmName; index: number }) => (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -540,7 +539,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           togglePhotoSelection(item.id);
           return;
         }
-
         setSelectedPhoto(item);
         setSelectedPhotoIndex(index);
         applyDetailZoomScale(DETAIL_ZOOM_MIN);
@@ -550,7 +548,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           togglePhotoSelection(item.id);
           return;
         }
-
         setIsSelectionMode(true);
         setSelectedPhotoIds([item.id]);
       }}
@@ -562,11 +559,11 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
         },
       ]}
     >
-      <View style={[styles.photoWrap, isDarkBackground && styles.photoWrapDark, { width: thumbnailSize, height: thumbnailSize }]}>
+      <View style={[styles.photoWrap, { width: thumbnailSize, height: thumbnailSize }]}>
         <Image
           source={{ uri: item.uri }}
           style={[styles.photo, { width: thumbnailSize, height: thumbnailSize }]}
-          resizeMode="contain"
+          resizeMode="cover"
           blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
         />
         {selectedTab === 'undeveloped' && (
@@ -582,109 +579,152 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           </View>
         )}
       </View>
-      <Text style={[styles.metaText, isDarkBackground && styles.textDarkSub]}>状態: {item.status === 'developed' ? '現像済み' : '現像前'}</Text>
-      <Text style={[styles.metaText, isDarkBackground && styles.textDarkSub]}>フィルム: {item.film_name ?? '不明'}</Text>
+      <Text style={styles.metaText}>状態: {item.status === 'developed' ? '現像済' : '現像前'}</Text>
+      <Text style={styles.metaText}>フィルム: {item.film_name ?? '不明'}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView
-      style={[styles.container, isDarkBackground && styles.containerDark]}
-      {...iosEdgeBackPanResponder.panHandlers}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={[styles.backText, isDarkBackground && styles.textDarkPrimary]}>← Back</Text>
+    <SafeAreaView style={styles.container}>
+      {/* Top-right toolbar: film inventory + refresh + settings */}
+      <View style={styles.topBar}>
+        {FILM_TYPES.map((type) => {
+          const meta = FILM_META[type];
+          return (
+            <View key={type} style={styles.filmBadge}>
+              <Image source={meta.image} style={styles.filmBadgeImage} />
+              <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
+            </View>
+          );
+        })}
+        <TouchableOpacity style={styles.topBarButton} onPress={handleCheckCommits}>
+          <Text style={styles.topBarButtonText}>↻</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.selectionToggleButton, isDarkBackground && styles.controlDark]} onPress={toggleSelectionMode}>
-          <Text style={[styles.selectionToggleButtonText, isDarkBackground && styles.textDarkPrimary]}>{isSelectionMode ? '完了' : '選択'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.tabsWrap, isDarkBackground && styles.tabsWrapDark]}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => {
-            setSelectedTab('developed');
-            setIsSelectionMode(false);
-            setSelectedPhotoIds([]);
-          }}
-        >
-          <Text style={[styles.tabText, isDarkBackground && styles.textDarkSub, selectedTab === 'developed' && styles.tabTextActive, isDarkBackground && selectedTab === 'developed' && styles.textDarkPrimary]}>現像済み</Text>
-          {selectedTab === 'developed' && <View style={[styles.tabIndicator, isDarkBackground && styles.tabIndicatorDark]} />}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => {
-            setSelectedTab('undeveloped');
-            setIsSelectionMode(false);
-            setSelectedPhotoIds([]);
-          }}
-        >
-          <Text style={[styles.tabText, isDarkBackground && styles.textDarkSub, selectedTab === 'undeveloped' && styles.tabTextActive, isDarkBackground && selectedTab === 'undeveloped' && styles.textDarkPrimary]}>未現像</Text>
-          {selectedTab === 'undeveloped' && <View style={[styles.tabIndicator, isDarkBackground && styles.tabIndicatorDark]} />}
+        <TouchableOpacity style={styles.topBarButton} onPress={onGoSettings}>
+          <Text style={styles.topBarButtonText}>⚙</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
-        <Text style={[styles.title, isDarkBackground && styles.textDarkPrimary]}>{selectedTab === 'developed' ? '現像済みアルバム' : '現像待ちアルバム'}</Text>
-        {isSelectionMode && (
-          <Text style={[styles.selectionInfoText, isDarkBackground && styles.textDarkSub]}>{selectedPhotoIds.length}枚を選択中</Text>
-        )}
-        <TouchableOpacity
-          style={[styles.sortButton, isDarkBackground && styles.controlDark, isSelectionMode && styles.sortButtonDisabled]}
-          onPress={rotateSortOrder}
-          disabled={isSelectionMode}
-        >
-          <Text style={[styles.sortButtonText, isDarkBackground && styles.textDarkPrimary]}>{sortOrderLabelMap[sortOrder]}</Text>
-        </TouchableOpacity>
-        {sortedPhotos.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <Text style={[styles.emptyText, isDarkBackground && styles.textDarkSub]}>
-              {selectedTab === 'developed' ? '現像済みの写真はありません' : '現像待ちの写真はありません'}
-            </Text>
+      <View style={styles.mainLayout}>
+        {/* Left side: grip element + dashboard — swipe up here to go to Camera */}
+        <View style={styles.leftPanel} {...swipePanResponder.panHandlers}>
+          {/* Grip element (decorative camera grip) */}
+          <View style={styles.grip}>
+            <View style={[styles.navSquare, styles.navSquareActive]} />
+            <View style={styles.gripLine} />
+            <View style={styles.navSquare} />
+            <View style={styles.gripLine} />
+            <View style={styles.navSquare} />
           </View>
-        ) : (
-          <FlatList
-            data={sortedPhotos}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderItem}
-            style={styles.listView}
-            numColumns={GRID_COLUMNS}
-            columnWrapperStyle={styles.listRow}
-            contentContainerStyle={[styles.list, isSelectionMode && styles.listWithSelectionActions]}
-          />
-        )}
-      </View>
 
-      {isSelectionMode && (
-        <View style={[styles.selectionActionBar, isDarkBackground && styles.selectionActionBarDark]}>
-          <View style={styles.selectionActionRow}>
-            <TouchableOpacity style={[styles.selectionActionButton, isDarkBackground && styles.controlDark]} onPress={() => void handleSaveSelectedPhotos()}>
-              <Text style={[styles.selectionActionButtonText, isDarkBackground && styles.textDarkPrimary]}>写真を保存</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.selectionActionButton, styles.selectionActionDangerButton, isDarkBackground && styles.controlDark]}
-              onPress={handleDeleteSelectedPhotos}
-            >
-              <Text style={[styles.selectionActionButtonText, styles.selectionActionDangerText]}>写真を削除</Text>
-            </TouchableOpacity>
+          {/* Dashboard controls */}
+          <View style={styles.dashboard}>
+            <Text style={styles.systemText}>DEVIT  //  ALBUM</Text>
+
+            <View style={styles.instruments}>
+              <Text style={styles.label}>[ PICTURE TYPE ]</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedTab('developed');
+                    setIsSelectionMode(false);
+                    setSelectedPhotoIds([]);
+                  }}
+                  style={[styles.dashboardBtn, selectedTab === 'developed' && styles.dashboardBtnActive]}
+                >
+                  <Text style={[styles.btnText, selectedTab === 'developed' && styles.btnTextActive]}>現像済み</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedTab('undeveloped');
+                    setIsSelectionMode(false);
+                    setSelectedPhotoIds([]);
+                  }}
+                  style={[styles.dashboardBtn, selectedTab === 'undeveloped' && styles.dashboardBtnActive]}
+                >
+                  <Text style={[styles.btnText, selectedTab === 'undeveloped' && styles.btnTextActive]}>現像待ち</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.label}>[ SORT ]</Text>
+              <View style={styles.buttonRow}>
+                {sortOrderOptions.map((order) => (
+                  <TouchableOpacity
+                    key={order}
+                    onPress={() => setSortOrder(order)}
+                    style={[styles.dashboardBtn, sortOrder === order && styles.dashboardBtnActive]}
+                  >
+                    <Text style={[styles.btnText, sortOrder === order && styles.btnTextActive]}>{sortOrderLabelMap[order]}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.label}>[ MODE ]</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  onPress={toggleSelectionMode}
+                  style={[styles.dashboardBtn, isSelectionMode && styles.dashboardBtnActive]}
+                >
+                  <Text style={[styles.btnText, isSelectionMode && styles.btnTextActive]}>
+                    {isSelectionMode ? '選択モード解除' : '選択モードにする'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {isSelectionMode && selectedPhotoIds.length > 0 && (
+                <>
+                  <Text style={styles.label}>[ ACTION ] {selectedPhotoIds.length}枚選択中</Text>
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity
+                      onPress={() => void handleSaveSelectedPhotos()}
+                      style={styles.dashboardBtn}
+                    >
+                      <Text style={styles.btnText}>保存</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleDeleteSelectedPhotos}
+                      style={[styles.dashboardBtn, styles.dangerBtn]}
+                    >
+                      <Text style={styles.dangerBtnText}>削除</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
         </View>
-      )}
 
+        {/* Right side: photo grid */}
+        <View style={styles.rightPanel}>
+          {sortedPhotos.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>
+                {selectedTab === 'developed' ? '現像済みの写真はありません' : '現像待ちの写真はありません'}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={sortedPhotos}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderItem}
+              numColumns={GRID_COLUMNS}
+              columnWrapperStyle={styles.listRow}
+              contentContainerStyle={styles.list}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </View>
+      </View>
+
+      {/* Detail modal */}
       <Modal
         visible={selectedPhoto !== null}
         animationType="fade"
         onRequestClose={closeSelectedPhoto}
       >
-        <SafeAreaView style={styles.detailContainer} {...iosEdgeBackPanResponder.panHandlers}>
+        <SafeAreaView style={styles.detailContainer}>
           <View style={styles.detailHeader}>
-            <TouchableOpacity
-              style={styles.detailHeaderButton}
-              onPress={closeSelectedPhoto}
-            >
+            <TouchableOpacity style={styles.detailHeaderButton} onPress={closeSelectedPhoto}>
               <Text style={styles.detailHeaderText}>✕</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -713,17 +753,10 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
               showsHorizontalScrollIndicator={false}
               keyExtractor={p => p.id.toString()}
               ItemSeparatorComponent={() => <View style={{ width: detailPhotoGap }} />}
-              initialScrollIndex={selectedPhotoIndex}
-              getItemLayout={(_, index) => ({
-                length: detailScrollInterval,
-                offset: detailScrollInterval * index,
-                index,
-              })}
+              contentOffset={{ x: detailScrollInterval * selectedPhotoIndex, y: 0 }}
               onMomentumScrollEnd={(event) => {
                 const nextIndex = Math.round(event.nativeEvent.contentOffset.x / detailScrollInterval);
-                if (nextIndex < 0 || nextIndex >= sortedPhotos.length) {
-                  return;
-                }
+                if (nextIndex < 0 || nextIndex >= sortedPhotos.length) return;
                 setSelectedPhotoIndex(nextIndex);
                 setSelectedPhoto(sortedPhotos[nextIndex]);
                 applyDetailZoomScale(DETAIL_ZOOM_MIN);
@@ -774,17 +807,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
         </SafeAreaView>
       </Modal>
 
+      {/* Action menu modal */}
       <Modal visible={menuTargetPhoto !== null} transparent animationType="fade" onRequestClose={closeActionMenu}>
         <View style={styles.menuBackdrop}>
           <Pressable style={styles.menuBackdropDismiss} onPress={closeActionMenu} />
           <View style={styles.menuSheet}>
             <Text style={styles.menuTitle}>写真アクション</Text>
-
-            {menuTargetPhoto?.status === 'undeveloped' && (
-              <TouchableOpacity style={styles.menuActionButton} onPress={() => menuTargetPhoto && handleDevelop(menuTargetPhoto)}>
-                <Text style={styles.menuActionText}>現像する</Text>
-              </TouchableOpacity>
-            )}
 
             {menuTargetPhoto?.status === 'developed' && (
               <TouchableOpacity

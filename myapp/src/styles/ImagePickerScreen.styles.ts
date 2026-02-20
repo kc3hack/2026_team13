@@ -69,11 +69,21 @@ export const styles = StyleSheet.create({
     backgroundColor: '#F7F7F7',
     borderColor: '#E4E4E4',
   },
+  filmChipTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  filmChipImage: {
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
+  },
   filmChipTitle: {
     color: '#222222',
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 2,
   },
   filmChipTitleSelected: {
     color: '#111111',
