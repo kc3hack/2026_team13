@@ -1,17 +1,21 @@
 // src/screens/SettingsScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
   TextInput,
   TouchableOpacity,
   Alert,
-  ScrollView,
 } from 'react-native';
-import { getMenuBackgroundMode, getUserSettings, MenuBackgroundMode, saveUserSettings } from '../utils/storage';
+import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
+import { getUserSettings, saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
-import { useBGM } from '../hooks/useBGM';
 import { styles } from '../styles/SettingsScreen.styles';
 
 interface SettingsScreenProps {
@@ -20,27 +24,33 @@ interface SettingsScreenProps {
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel }) => {
+  const [fontsLoaded] = useFonts({
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
   const [username, setUsername] = useState('');
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [backgroundMode, setBackgroundMode] = useState<MenuBackgroundMode>('light');
-  const isDarkBackground = backgroundMode === 'dark';
-  const { volume, updateVolume } = useBGM();
 
   useEffect(() => {
     const loadSettings = async () => {
       const settings = await getUserSettings();
-      const mode = await getMenuBackgroundMode();
       if (settings) {
         setUsername(settings.username);
         setToken(settings.token);
         setGitEmail(settings.gitEmail || '');
       }
-      setBackgroundMode(mode);
     };
     loadSettings();
   }, []);
+
+  if (!fontsLoaded) {
+    return <SafeAreaView style={styles.container} />;
+  }
+
+  const regularFont = { fontFamily: 'CourierPrime_400Regular' as const, fontWeight: 'normal' as const };
+  const boldFont = { fontFamily: 'CourierPrime_700Bold' as const, fontWeight: 'normal' as const };
 
   const handleSave = async () => {
     if (!username || !token) {
@@ -68,119 +78,81 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
     onSave();
   };
 
-  const handleVolumeIncrease = () => {
-    updateVolume(Math.min(1, volume + 0.1));
-  };
-
-  const handleVolumeDecrease = () => {
-    updateVolume(Math.max(0, volume - 0.1));
-  };
-
   return (
-    <View style={[styles.container, isDarkBackground && styles.containerDark]}>
-      {/* Header */}
-      <View style={[styles.header, isDarkBackground && styles.headerDark]}>
-        <TouchableOpacity onPress={onCancel} style={styles.backTouchable}>
-          <Text style={[styles.backText, isDarkBackground && styles.textDarkPrimary]}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, isDarkBackground && styles.textDarkPrimary]}>Settings</Text>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <TouchableOpacity onPress={onCancel} style={styles.backTouchable}>
+        <Text style={[styles.backText, boldFont]}>{'< ABORT'}</Text>
+      </TouchableOpacity>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ── Profile ── */}
-        <Text style={[styles.sectionTitle, isDarkBackground && styles.textDarkSub]}>Profile</Text>
-
-        <View style={[styles.sectionCard, isDarkBackground && styles.sectionCardDark]}>
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>GitHub Username</Text>
-            <TextInput
-              style={[styles.input, isDarkBackground && styles.inputDark]}
-              value={username}
-              onChangeText={setUsername}
-              placeholder="e.g. octocat"
-              placeholderTextColor="#aaa"
-              autoCapitalize="none"
-            />
+      <View style={styles.mainLayout}>
+        <View style={styles.leftPanel}>
+          <View style={styles.gripDecor}>
+            <View style={[styles.navSquare, styles.navSquareActive]} />
+            <View style={styles.gripLine} />
+            <View style={styles.navSquare} />
+            <View style={styles.gripLine} />
+            <View style={styles.navSquare} />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>Personal Access Token (PAT)</Text>
-            <TextInput
-              style={[styles.input, isDarkBackground && styles.inputDark]}
-              value={token}
-              onChangeText={setToken}
-              placeholder="github_pat_..."
-              placeholderTextColor="#aaa"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-            <Text style={[styles.helperText, isDarkBackground && styles.textDarkSub]}>
-              Fine-grained PAT with Contents (Read-only) permission.
-            </Text>
-          </View>
-
-          <View style={[styles.inputGroup, styles.inputGroupLast]}>
-            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>Git Email (Optional)</Text>
-            <TextInput
-              style={[styles.input, isDarkBackground && styles.inputDark]}
-              value={gitEmail}
-              onChangeText={setGitEmail}
-              placeholder="email@example.com"
-              placeholderTextColor="#aaa"
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-            <Text style={[styles.helperText, isDarkBackground && styles.textDarkSub]}>
-              Used to identify your commits accurately.
-            </Text>
+          <View style={styles.dashboard}>
+            <Text style={[styles.systemText, regularFont]}>DEVIT // SETTINGS_CONFIG</Text>
           </View>
         </View>
 
-        {/* Divider */}
-        <View style={[styles.divider, isDarkBackground && styles.dividerDark]} />
+        <View style={styles.rightPanel}>
+          <Text style={[styles.sectionTitle, boldFont]}>AUTH PROFILE</Text>
 
-        {/* ── Sounds ── */}
-        <Text style={[styles.sectionTitle, isDarkBackground && styles.textDarkSub]}>Sounds</Text>
-
-        <View style={[styles.sectionCard, isDarkBackground && styles.sectionCardDark]}>
-          <View style={[styles.inputGroup, styles.inputGroupLast]}>
-            <Text style={[styles.label, isDarkBackground && styles.textDarkPrimary]}>BGM Volume</Text>
-            <View style={styles.volumeRow}>
-              <TouchableOpacity style={[styles.volumeBtn, isDarkBackground && styles.volumeBtnDark]} onPress={handleVolumeDecrease}>
-                <Text style={[styles.volumeBtnText, isDarkBackground && styles.textDarkPrimary]}>−</Text>
-              </TouchableOpacity>
-              <View style={styles.volumeTrackWrap}>
-                <View style={[styles.volumeTrack, isDarkBackground && styles.volumeTrackDark]}>
-                  <View style={[styles.volumeFill, { width: `${volume * 100}%` }]} />
-                </View>
-                <Text style={[styles.volumePercent, isDarkBackground && styles.textDarkSub]}>{Math.round(volume * 100)}%</Text>
-              </View>
-              <TouchableOpacity style={[styles.volumeBtn, isDarkBackground && styles.volumeBtnDark]} onPress={handleVolumeIncrease}>
-                <Text style={[styles.volumeBtnText, isDarkBackground && styles.textDarkPrimary]}>+</Text>
-              </TouchableOpacity>
+          <View style={styles.formCard}>
+            <View style={styles.formRow}>
+              <Text style={[styles.label, boldFont]}>USERNAME</Text>
+              <TextInput
+                style={[styles.input, regularFont]}
+                value={username}
+                onChangeText={setUsername}
+                placeholder="e.g. octocat"
+                placeholderTextColor="#5a805a"
+                autoCapitalize="none"
+              />
             </View>
+
+            <View style={styles.formRow}>
+              <Text style={[styles.label, boldFont]}>PAT TOKEN</Text>
+              <TextInput
+                style={[styles.input, regularFont]}
+                value={token}
+                onChangeText={setToken}
+                placeholder="github_pat_..."
+                placeholderTextColor="#5a805a"
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              <Text style={[styles.helperText, regularFont]}>Contents: Read-only</Text>
+            </View>
+
+            <View style={styles.formRowLast}>
+              <Text style={[styles.label, boldFont]}>GIT EMAIL</Text>
+              <TextInput
+                style={[styles.input, regularFont]}
+                value={gitEmail}
+                onChangeText={setGitEmail}
+                placeholder="email@example.com"
+                placeholderTextColor="#5a805a"
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveBtn, loading && styles.disabledBtn]}
+              onPress={handleSave}
+              disabled={loading}
+            >
+              <Text style={[styles.saveBtnText, boldFont]}>{loading ? 'VERIFYING...' : 'SAVE'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-
-      {/* Footer */}
-      <View style={[styles.footer, isDarkBackground && styles.footerDark]}>
-        <TouchableOpacity style={[styles.footerBtn, styles.cancelBtn]} onPress={onCancel}>
-          <Text style={[styles.cancelBtnText, isDarkBackground && styles.textDarkSub]}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.footerBtn, styles.saveBtn, loading && styles.disabledBtn]}
-          onPress={handleSave}
-          disabled={loading}
-        >
-          <Text style={styles.saveBtnText}>{loading ? 'Verifying...' : 'Save'}</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
