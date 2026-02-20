@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
@@ -7,7 +7,13 @@ import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES, RewardFilmType } from '../types';
 import { styles } from '../styles/CameraScreen.styles';
 
-const FILM_ID_MAP: Record<RewardFilmType, number> = { mono: 11, vivid: 12, retro: 13 };
+const FILM_ID_MAP: Record<RewardFilmType, number> = {
+  mono: 11,
+  vivid: 12,
+  retro: 13,
+  disposable: 14,
+  soft: 15,
+};
 
 interface CameraScreenProps {
     filmType?: string;
@@ -24,13 +30,21 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const [isShooting, setIsShooting] = useState(false);
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({
+    mono: 0,
+    vivid: 0,
+    retro: 0,
+    disposable: 0,
+    soft: 0,
+  });
   const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
     filmType && FILM_TYPES.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
   );
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
   const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
+
+  const getFilmDisplayName = (type: RewardFilmType): string => type;
   
   const cameraRef = useRef<CameraView>(null);
   const { checkForCommits } = useGithubCommits();
@@ -161,7 +175,12 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
             
             <View style={styles.instruments}>
               <Text style={styles.label}>[ FILM_TYPE ]</Text>
-              <View style={styles.filmSelectRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filmSelectScroll}
+                contentContainerStyle={styles.filmSelectRow}
+              >
                 {FILM_TYPES.map((type) => {
                   const meta = FILM_META[type];
                   const isSelected = selectedFilm === type;
@@ -177,7 +196,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                     >
                       <Image source={meta.image} style={styles.filmSelectImage} />
                       <Text style={[styles.filmSelectLabel, isSelected && styles.filmSelectLabelActive]}>
-                        {meta.label}
+                        {getFilmDisplayName(type)}
                       </Text>
                       <Text style={[styles.filmSelectCount, count === 0 && styles.filmSelectCountEmpty]}>
                         x{count}
@@ -185,7 +204,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+              </ScrollView>
               {selectedFilm && filmInventory[selectedFilm] === 0 && (
                 <Text style={styles.warningText}>⚠ フィルムがありません</Text>
               )}
