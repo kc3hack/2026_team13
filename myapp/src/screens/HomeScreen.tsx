@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   BackHandler,
+  Image,
   PanResponder,
   Platform,
   SafeAreaView,
@@ -149,7 +150,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       await addFilm(type);
       await refreshInventory();
       const meta = FILM_META[type];
-      Alert.alert('フィルム追加', `${meta.emoji} ${meta.label} を追加しました！`);
+      Alert.alert('フィルム追加', `${meta.label} を追加しました！`);
     } catch (error) {
       console.log('failed to add debug film', error);
       Alert.alert('エラー', 'フィルムの追加に失敗しました。');
@@ -166,13 +167,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <View style={styles.topBar}>
         <View style={styles.filmBadgeRow}>
           <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
-            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.mono.emoji} {filmInventory.mono}</Text>
+            <Image source={FILM_META.mono.image} style={styles.filmBadgeImage} />
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{filmInventory.mono}</Text>
           </View>
           <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
-            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.vivid.emoji} {filmInventory.vivid}</Text>
+            <Image source={FILM_META.vivid.image} style={styles.filmBadgeImage} />
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{filmInventory.vivid}</Text>
           </View>
           <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
-            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.retro.emoji} {filmInventory.retro}</Text>
+            <Image source={FILM_META.retro.image} style={styles.filmBadgeImage} />
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{filmInventory.retro}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.menuButton} onPress={openMenu}>

@@ -189,7 +189,7 @@ export const useGithubCommits = () => {
           const meta = FILM_META[filmType];
           filmsAwarded.push({ type: filmType, label: meta.label, emoji: meta.emoji });
         }
-        console.log('[CommitCheck] 付与フィルム:', filmsAwarded.map(f => `${f.emoji}${f.label}`).join(', '));
+        console.log('[CommitCheck] 付与フィルム:', filmsAwarded.map(f => f.label).join(', '));
       }
 
       // Refresh inventory from storage
@@ -204,7 +204,7 @@ export const useGithubCommits = () => {
         // Build summary of awarded films
         const filmCounts: Record<string, number> = {};
         for (const f of filmsAwarded) {
-          const key = `${f.emoji} ${f.label}`;
+          const key = f.label;
           filmCounts[key] = (filmCounts[key] || 0) + 1;
         }
         const filmSummary = Object.entries(filmCounts)
