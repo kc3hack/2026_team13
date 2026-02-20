@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { fetchUserRepos, fetchRepoCommits } from '../api/githubAPI';
-import { addFilm, getFilmInventory } from '../utils/sqlite';
+import { addFilm, getFilmInventory, initDatabase } from '../utils/sqlite';
 import {
   getLastCheckTimestamp,
   getUserSettings,
@@ -62,6 +62,7 @@ export const useGithubCommits = () => {
 
   useEffect(() => {
     const loadState = async () => {
+      await initDatabase();
       const inv = await getFilmInventory();
       setFilmInventory(inv);
       const ts = await getLastCheckTimestamp();
@@ -73,6 +74,8 @@ export const useGithubCommits = () => {
   }, []);
 
   const checkForCommits = useCallback(async (): Promise<CheckResult> => {
+    await initDatabase();
+
     const settings = await getUserSettings();
     if (!settings?.username || !settings?.token) {
       return {

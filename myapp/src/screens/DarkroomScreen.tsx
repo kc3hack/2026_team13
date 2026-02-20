@@ -1,9 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'; //reactのコンポーネントをインポート
-import { ActivityIndicator, Alert, Image, SafeAreaView, Text, TouchableOpacity, View, AppState, Platform, BackHandler } from 'react-native'; //react nativeのコンポーネントをインポート
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, BackHandler, Image, Modal, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Audio } from 'expo-av'; //expoのAudioをインポート
-import { getFilmEffectTypeById, getPhotosByStatus, updatePhotoStatus, updatePhotoUri } from '../utils/sqlite';
-import * as MediaLibrary from 'expo-media-library';
-import { Modal } from 'react-native';
+import { completeDevelopingSession, failDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri } from '../utils/sqlite';
 import { applyFilmEffectToPhoto } from '../utils/photoEffects';
 import { BlurView } from 'expo-blur';
 import { styles } from '../styles/DarkroomScreen.styles';
@@ -11,32 +9,47 @@ import { styles } from '../styles/DarkroomScreen.styles';
 // 現像処理の画面
 interface DarkroomScreenProps {
   onBack: () => void;
-  photo: {
-    id: number;
-    uri: string;
-    filmId: number;
-  } | null;
 }
 
-// 現像に必要な時間（秒）[初期値=1時間] - 開発中は短くしてもOK
-const INITIAL_SECONDS = 30;
+const SESSION_SECONDS = 3600;
+const MAX_SLOTS = 5;
+
+interface DevelopingPhoto {
+  id: number;
+  uri: string;
+  filmId: number;
+  developingStartedAt: string | null;
+}
+
+const parseDbDateMs = (value: string | null): number | null => {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const direct = new Date(normalized).getTime();
+  if (!Number.isNaN(direct)) {
+    return direct;
+  }
+
+  const fallback = new Date(`${normalized}Z`).getTime();
+  return Number.isNaN(fallback) ? null : fallback;
+};
 
 // 現像処理の画面コンポーネント
-export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo }) => {
-  const [developingPhoto, setDevelopingPhoto] = useState<DarkroomScreenProps['photo']>(photo);
+export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack }) => {
+  const [developingPhotos, setDevelopingPhotos] = useState<DevelopingPhoto[]>([]);
   const [isPreparing, setIsPreparing] = useState(true);
-  const [remainingSeconds, setRemainingSeconds] = useState(INITIAL_SECONDS);
-  const hasShownSuccessAlert = useRef(false);
-  const hasUpdatedStatus = useRef(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(SESSION_SECONDS);
+  const [sessionStartedAtMs, setSessionStartedAtMs] = useState<number | null>(null);
+  const [isSessionStarted, setIsSessionStarted] = useState(false);
+  const [isSessionCompleted, setIsSessionCompleted] = useState(false);
+  const [completionMessage, setCompletionMessage] = useState('');
+  const [isFinishingSession, setIsFinishingSession] = useState(false);
   const waterSoundRef = useRef<Audio.Sound | null>(null);
-  const cancelProcessingRef = useRef(false);
-  const isLeavingDarkroomRef = useRef(false);
-  const pausedStartedAtRef = useRef<number | null>(null);
-  const pausedAccumulatedMsRef = useRef(0);
-  const [showModal, setShowModal] = useState(false);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
-  const [isProcessingFilter, setIsProcessingFilter] = useState(false);
-  const [isFilterProcessingDone, setIsFilterProcessingDone] = useState(false);
+  const cancelProcessingRef = useRef(false);
+  const finalizedSessionRef = useRef(false);
 
   const stopAndUnloadWaterSound = useCallback(async () => {
     const currentSound = waterSoundRef.current;
@@ -60,190 +73,23 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     }
   }, []);
 
-  const leaveDarkroom = useCallback(() => {
-    isLeavingDarkroomRef.current = true;
-    cancelProcessingRef.current = true;
-    hasShownSuccessAlert.current = true;
-    hasUpdatedStatus.current = true;
-    setShowExitConfirmModal(false);
-    setIsProcessingFilter(false);
-    void stopAndUnloadWaterSound();
-    onBack();
-  }, [onBack, stopAndUnloadWaterSound]);
+  const mapRowsToDevelopingPhotos = useCallback((rows: Awaited<ReturnType<typeof getDevelopingPhotos>>): DevelopingPhoto[] => {
+    return rows.slice(0, MAX_SLOTS).map((row) => ({
+      id: row.id,
+      uri: row.uri,
+      filmId: row.film_id,
+      developingStartedAt: row.developing_started_at ?? null,
+    }));
+  }, []);
 
-  useEffect(() => {
-    let isActive = true; // クリーンアップのためのフラグ
-    setIsPreparing(true);
+  const runPhotoEffects = useCallback(async (rows: DevelopingPhoto[]) => {
+    cancelProcessingRef.current = false;
 
-    const resolveDevelopingPhoto = async () => {
-      if (photo) {
-        setDevelopingPhoto(photo);
-        if (isActive) {
-          setIsPreparing(false);
-        }
+    for (const targetPhoto of rows) {
+      if (cancelProcessingRef.current) {
         return;
       }
 
-      try {
-        const undeveloped = await getPhotosByStatus('undeveloped');
-        if (!isActive) {
-          return;
-        }
-
-        if (undeveloped.length > 0) {
-          const latest = undeveloped[0];
-          setDevelopingPhoto({
-            id: latest.id,
-            uri: latest.uri,
-            filmId: latest.film_id,
-          });
-        } else {
-          setDevelopingPhoto(null);
-        }
-      } catch (error) {
-        console.log('failed to load undeveloped photo', error);
-      } finally {
-        if (isActive) {
-          setIsPreparing(false);
-        }
-      }
-    };
-
-    void resolveDevelopingPhoto();
-
-    return () => {
-      isActive = false;
-    };
-  }, [photo]);
-
-  // アプリがバックグラウンドに移行した場合の処理
-  useEffect(() => {
-    let wasBackground = false; // アプリがバックグラウンドに移行したかどうかのフラグ
-
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState === "background") {
-        wasBackground = true;
-      }
-
-      if (nextState === "active" && wasBackground) {
-        wasBackground = false;
-        if (isLeavingDarkroomRef.current) {
-          return;
-        }
-
-        Alert.alert("現像失敗", "アプリを離れたため現像が中断されました");
-        leaveDarkroom();
-      }
-    });
-
-    return () => subscription.remove();
-  }, [leaveDarkroom]);
-
-  const handleSave = async () => {
-    if (!developingPhoto) return;
-
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert("保存できません", "写真へのアクセス権限がありません");
-      return;
-    }
-
-    try {
-      await MediaLibrary.saveToLibraryAsync(developingPhoto.uri);
-      Alert.alert("保存完了", "写真をカメラロールに保存しました");
-    } catch (error) {
-      Alert.alert("保存エラー", "写真の保存に失敗しました");
-    }
-  };
-
-  useEffect(() => {
-    let isActive = true;
-
-    const startWaterASMR = async () => {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/water_asmr.mp3'),
-          {
-            shouldPlay: true,
-            isLooping: true,
-          },
-        );
-
-        if (!isActive) {
-          await sound.unloadAsync();
-          return;
-        }
-
-        waterSoundRef.current = sound;
-      } catch (error) {
-        console.warn('水音ASMRの再生開始に失敗しました', error);
-      }
-    };
-
-    void startWaterASMR();
-
-    return () => {
-      isActive = false;
-      void stopAndUnloadWaterSound();
-    };
-  }, [stopAndUnloadWaterSound]);
-
-  useEffect(() => {
-    if (!developingPhoto) {
-      return;
-    }
-
-    const startedAt = Date.now();
-    pausedStartedAtRef.current = null;
-    pausedAccumulatedMsRef.current = 0;
-
-    setRemainingSeconds(INITIAL_SECONDS);
-
-    const timer = setInterval(() => {
-      const pausedMs = pausedAccumulatedMsRef.current
-        + (pausedStartedAtRef.current ? Date.now() - pausedStartedAtRef.current : 0);
-      const elapsed = Math.floor((Date.now() - startedAt - pausedMs) / 1000);
-      const next = Math.max(0, INITIAL_SECONDS - elapsed);
-      setRemainingSeconds(next);
-    }, 250);
-
-    return () => clearInterval(timer);
-  }, [developingPhoto?.id]);
-
-  useEffect(() => {
-    if (!developingPhoto) {
-      return;
-    }
-
-    if (showExitConfirmModal) {
-      if (!pausedStartedAtRef.current) {
-        pausedStartedAtRef.current = Date.now();
-      }
-      return;
-    }
-
-    if (pausedStartedAtRef.current) {
-      pausedAccumulatedMsRef.current += Date.now() - pausedStartedAtRef.current;
-      pausedStartedAtRef.current = null;
-    }
-  }, [developingPhoto, showExitConfirmModal]);
-
-  useEffect(() => {
-    if (!developingPhoto) {
-      setIsFilterProcessingDone(true);
-      setIsProcessingFilter(false);
-      return;
-    }
-
-    const targetPhoto = developingPhoto;
-
-    let cancelled = false;
-    cancelProcessingRef.current = false;
-
-    setIsProcessingFilter(true);
-    setIsFilterProcessingDone(false);
-
-    void (async () => {
       try {
         const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
         const effectType =
@@ -256,63 +102,232 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
                 ? 'retro'
                 : 'mono');
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
-          shouldCancel: () => cancelled || cancelProcessingRef.current || isLeavingDarkroomRef.current,
+          shouldCancel: () => cancelProcessingRef.current,
         });
 
-        if (cancelled || isLeavingDarkroomRef.current) {
+        if (cancelProcessingRef.current) {
           return;
         }
 
         if (processedUri !== targetPhoto.uri) {
           await updatePhotoUri(targetPhoto.id, processedUri);
-          if (!cancelled && !isLeavingDarkroomRef.current) {
-            setDevelopingPhoto((prev) => {
-              if (!prev || prev.id !== targetPhoto.id) {
-                return prev;
-              }
-              return { ...prev, uri: processedUri };
-            });
-          }
+          setDevelopingPhotos((prev) => prev.map((item) => (item.id === targetPhoto.id ? { ...item, uri: processedUri } : item)));
         }
       } catch (error) {
         console.log('failed to process photo in darkroom', error);
-      } finally {
-        if (!cancelled && !isLeavingDarkroomRef.current) {
-          setIsFilterProcessingDone(true);
-          setIsProcessingFilter(false);
-        }
       }
-    })();
+    }
+  }, []);
 
-    return () => {
-      cancelled = true;
-      cancelProcessingRef.current = true;
-    };
-  }, [developingPhoto?.id]);
-
-  useEffect(() => {
-    if (isLeavingDarkroomRef.current) {
+  const finalizeSession = useCallback(async (rows: DevelopingPhoto[]) => {
+    if (finalizedSessionRef.current || rows.length === 0) {
       return;
     }
 
-    if (remainingSeconds === 0 && isFilterProcessingDone && !hasShownSuccessAlert.current) {
-      void stopAndUnloadWaterSound();
-      hasShownSuccessAlert.current = true;
-      if (developingPhoto && !hasUpdatedStatus.current) {
-        hasUpdatedStatus.current = true;
-        void updatePhotoStatus(developingPhoto.id, 'developed').catch((error) => {
-          console.log('failed to update photo status', error);
-        });
-      }
-      Alert.alert('現像完了', '現像に成功しました！', [
-        {
-          text: "OK",
-          onPress: () => setShowModal(true),
-        },
-      ]);
+    finalizedSessionRef.current = true;
+    setIsFinishingSession(true);
 
+    try {
+      await runPhotoEffects(rows);
+      await completeDevelopingSession(rows.map((item) => item.id));
+      setRemainingSeconds(0);
+      setCompletionMessage('現像が完了しました。アルバムを確認してください');
+      setIsSessionCompleted(true);
+    } catch (error) {
+      console.log('failed to finalize developing session', error);
+    } finally {
+      setIsFinishingSession(false);
+      await stopAndUnloadWaterSound();
     }
-  }, [developingPhoto, isFilterProcessingDone, remainingSeconds, stopAndUnloadWaterSound]);
+  }, [runPhotoEffects, stopAndUnloadWaterSound]);
+
+  const computeRemainingSeconds = useCallback((startedAtMs: number): number => {
+    const elapsed = Math.floor((Date.now() - startedAtMs) / 1000);
+    return Math.max(0, SESSION_SECONDS - elapsed);
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+    setIsPreparing(true);
+    setIsSessionStarted(false);
+    setIsSessionCompleted(false);
+    setCompletionMessage('');
+    finalizedSessionRef.current = false;
+
+    const loadSession = async () => {
+      try {
+        const developing = await getDevelopingPhotos();
+
+        if (!isActive) {
+          return;
+        }
+
+        if (developing.length > 0) {
+          const sessionRows = mapRowsToDevelopingPhotos(developing);
+          setDevelopingPhotos(sessionRows);
+          setIsSessionStarted(true);
+
+          const firstStart = sessionRows
+            .map((item) => parseDbDateMs(item.developingStartedAt))
+            .filter((value): value is number => value !== null)
+            .sort((left, right) => left - right)[0] ?? Date.now();
+
+          setSessionStartedAtMs(firstStart);
+          const nextRemaining = computeRemainingSeconds(firstStart);
+          setRemainingSeconds(nextRemaining);
+
+          if (nextRemaining === 0) {
+            void finalizeSession(sessionRows);
+          }
+          return;
+        }
+
+        const undeveloped = await getUndevelopedPhotosOldest(MAX_SLOTS);
+
+        if (!isActive) {
+          return;
+        }
+
+        const waitingRows = undeveloped.slice(0, MAX_SLOTS).map((row) => ({
+          id: row.id,
+          uri: row.uri,
+          filmId: row.film_id,
+          developingStartedAt: null,
+        }));
+        setDevelopingPhotos(waitingRows);
+        setSessionStartedAtMs(null);
+        setRemainingSeconds(SESSION_SECONDS);
+        setIsSessionStarted(false);
+
+        if (waitingRows.length === 0) {
+          setCompletionMessage('現像対象の写真がありません');
+        } else {
+          setCompletionMessage('現像開始ボタンを押してください');
+        }
+      } catch (error) {
+        console.log('failed to load darkroom session', error);
+      } finally {
+        if (isActive) {
+          setIsPreparing(false);
+        }
+      }
+    };
+
+    void loadSession();
+
+    return () => {
+      isActive = false;
+    };
+  }, [computeRemainingSeconds, finalizeSession, mapRowsToDevelopingPhotos]);
+
+  useEffect(() => {
+    if (!isSessionStarted || !sessionStartedAtMs || isSessionCompleted) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const next = computeRemainingSeconds(sessionStartedAtMs);
+      setRemainingSeconds(next);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [computeRemainingSeconds, isSessionCompleted, isSessionStarted, sessionStartedAtMs]);
+
+  useEffect(() => {
+    if (!isSessionStarted || remainingSeconds > 0 || isSessionCompleted || isFinishingSession || developingPhotos.length === 0) {
+      return;
+    }
+
+    void finalizeSession(developingPhotos);
+  }, [developingPhotos, finalizeSession, isFinishingSession, isSessionCompleted, isSessionStarted, remainingSeconds]);
+
+  const shouldPlayWaterSound = isSessionStarted && developingPhotos.length > 0 && remainingSeconds > 0 && !isSessionCompleted;
+
+  const handleStartDeveloping = useCallback(() => {
+    if (isSessionStarted || isSessionCompleted || developingPhotos.length === 0) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        setIsPreparing(true);
+        setCompletionMessage('');
+        finalizedSessionRef.current = false;
+
+        const targetIds = developingPhotos.slice(0, MAX_SLOTS).map((item) => item.id);
+        const startedIds = await startDevelopingSession(targetIds);
+
+        if (startedIds.length === 0) {
+          setCompletionMessage('現像を開始できる写真がありません');
+          return;
+        }
+
+        const refreshedDeveloping = await getDevelopingPhotos();
+        const sessionRows = mapRowsToDevelopingPhotos(
+          refreshedDeveloping.filter((item) => startedIds.includes(item.id)),
+        );
+
+        if (sessionRows.length === 0) {
+          setCompletionMessage('現像を開始できる写真がありません');
+          return;
+        }
+
+        const firstStart = sessionRows
+          .map((item) => parseDbDateMs(item.developingStartedAt))
+          .filter((value): value is number => value !== null)
+          .sort((left, right) => left - right)[0] ?? Date.now();
+
+        setDevelopingPhotos(sessionRows);
+        setSessionStartedAtMs(firstStart);
+        setRemainingSeconds(computeRemainingSeconds(firstStart));
+        setIsSessionStarted(true);
+      } catch (error) {
+        console.log('failed to start developing session', error);
+      } finally {
+        setIsPreparing(false);
+      }
+    })();
+  }, [computeRemainingSeconds, developingPhotos, isSessionCompleted, isSessionStarted, mapRowsToDevelopingPhotos]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncWaterSound = async () => {
+      if (!shouldPlayWaterSound) {
+        await stopAndUnloadWaterSound();
+        return;
+      }
+
+      if (waterSoundRef.current) {
+        return;
+      }
+
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../assets/sounds/water_asmr.mp3'),
+          {
+            shouldPlay: true,
+            isLooping: true,
+          },
+        );
+
+        if (!isMounted) {
+          await sound.unloadAsync();
+          return;
+        }
+
+        waterSoundRef.current = sound;
+      } catch (error) {
+        console.warn('水音ASMRの再生開始に失敗しました', error);
+      }
+    };
+
+    void syncWaterSound();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
@@ -324,19 +339,38 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       .join(':');
   }, [remainingSeconds]);
 
-  const shouldMaskPendingPhoto =
-    !!developingPhoto &&
-    (remainingSeconds > 0 || isProcessingFilter || !isFilterProcessingDone);
+  const slots = useMemo(() => {
+    const items: Array<DevelopingPhoto | null> = [...developingPhotos];
+    while (items.length < MAX_SLOTS) {
+      items.push(null);
+    }
+    return items;
+  }, [developingPhotos]);
 
   const canShowBackButton =
     !isPreparing &&
-    !showModal &&
     !showExitConfirmModal &&
-    !isLeavingDarkroomRef.current;
+    !isFinishingSession;
 
   const handleBackPress = () => {
     setShowExitConfirmModal(true);
   };
+
+  const handleConfirmExit = useCallback(() => {
+    const developingIds = developingPhotos.map((item) => item.id);
+    cancelProcessingRef.current = true;
+    setShowExitConfirmModal(false);
+
+    void (async () => {
+      if (isSessionStarted && developingIds.length > 0 && remainingSeconds > 0 && !isSessionCompleted) {
+        await failDevelopingSession(developingIds).catch((error) => {
+          console.log('failed to rollback developing session', error);
+        });
+      }
+      await stopAndUnloadWaterSound();
+      onBack();
+    })();
+  }, [developingPhotos, isSessionCompleted, isSessionStarted, onBack, remainingSeconds, stopAndUnloadWaterSound]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {
@@ -352,6 +386,46 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
 
     return () => subscription.remove();
   }, [canShowBackButton]);
+
+  useEffect(() => {
+    return () => {
+      cancelProcessingRef.current = true;
+      void stopAndUnloadWaterSound();
+    };
+  }, [stopAndUnloadWaterSound]);
+
+  const renderSlot = (slot: DevelopingPhoto | null, index: number) => {
+    if (!slot) {
+      return (
+        <View key={`empty-${index}`} style={styles.slotCard}>
+          <View style={styles.emptySlot}>
+            <Text style={styles.emptySlotTitle}>Empty</Text>
+            <Text style={styles.emptySlotSub}>空きスロット</Text>
+          </View>
+        </View>
+      );
+    }
+
+    const isMaskVisible = !isSessionCompleted;
+    const statusText = isSessionCompleted ? '現像完了' : isSessionStarted ? '現像中' : '現像開始前';
+
+    return (
+      <View key={slot.id} style={styles.slotCard}>
+        <View style={styles.slotImageWrap}>
+          <Image source={{ uri: slot.uri }} style={styles.slotImage} />
+          {isMaskVisible && (
+            <BlurView
+              intensity={56}
+              tint="dark"
+              experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+              style={styles.slotBlur}
+            />
+          )}
+        </View>
+        <Text style={styles.slotStatus}>{statusText}</Text>
+      </View>
+    );
+  };
 
   if (isPreparing) {
     return (
@@ -372,68 +446,52 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       <View pointerEvents="none" style={styles.glowLarge} />
       <View pointerEvents="none" style={styles.glowSmall} />
 
-      {canShowBackButton && (
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.pendingWrap}>
-        <Text style={styles.pendingTitle}>現像待ちの写真</Text>
-        {developingPhoto ? (
-          <View style={styles.pendingPhotoWrap}>
-            <Image source={{ uri: developingPhoto.uri }} style={styles.pendingPhoto} />
-            {shouldMaskPendingPhoto && (
-              <BlurView
-                intensity={56}
-                tint="dark"
-                experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-                style={styles.pendingPhotoMosaic}
-              />
-            )}
-          </View>
-        ) : (
-          <Text style={styles.pendingEmpty}>現像対象の写真がありません</Text>
+      <View style={styles.mainContent}>
+        {canShowBackButton && (
+          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
         )}
+
+        <View style={styles.slotsWrap}>
+          <Text style={styles.pendingTitle}>現像タンク（最大5）</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={215}
+            contentContainerStyle={styles.slotsScrollContent}
+            style={styles.slotsScroll}
+          >
+            {slots.map(renderSlot)}
+          </ScrollView>
+        </View>
+
+        <View style={[styles.timerWrap, { paddingBottom: Platform.OS === 'ios' ? 44 : 24 }]}> 
+          <Text style={styles.timerLabel}>DARKROOM SESSION</Text>
+          <Text style={styles.processingText}>
+            {isSessionCompleted
+              ? '現像完了'
+              : isSessionStarted
+                ? '現像中'
+                : developingPhotos.length > 0
+                  ? '準備完了（待機）'
+                  : '現像対象なし'}
+          </Text>
+          <Text style={styles.timerText}>{displayTime}</Text>
+          {!isSessionStarted && !isSessionCompleted && developingPhotos.length > 0 && (
+            <TouchableOpacity
+              style={[styles.saveButton, { marginTop: 16, marginBottom: 0 }]}
+              onPress={handleStartDeveloping}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.saveButtonText}>現像を開始する</Text>
+            </TouchableOpacity>
+          )}
+          {isFinishingSession && <Text style={styles.processingText}>現像仕上げ中...</Text>}
+          {!isFinishingSession && completionMessage.length > 0 && <Text style={styles.processingText}>{completionMessage}</Text>}
+        </View>
       </View>
-
-      <View style={styles.timerWrap}>
-        <Text style={styles.timerLabel}>DEVELOPING</Text>
-        <Text style={styles.timerText}>{displayTime}</Text>
-        {developingPhoto && isProcessingFilter && <Text style={styles.processingText}>フィルム処理中...</Text>}
-        {developingPhoto && remainingSeconds === 0 && !isFilterProcessingDone && <Text style={styles.processingText}>現像仕上げ中...</Text>}
-        {developingPhoto && !isProcessingFilter && isFilterProcessingDone && <Text style={styles.processingText}>フィルム処理完了</Text>}
-      </View>
-
-      <Modal
-  visible={showModal}
-  transparent
-  animationType="fade"
->
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalContent}>
-      <Text style={styles.modalTitle}>現像された写真</Text>
-
-      {developingPhoto && (
-        <Image
-          source={{ uri: developingPhoto.uri }}
-          style={styles.modalImage}
-        />
-      )}
-
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>保存する</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.closeButton}
-        onPress={() => {setShowModal(false); onBack();}}
-      >
-        <Text style={styles.closeButtonText}>閉じる</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
 
       <Modal
         visible={showExitConfirmModal}
@@ -445,14 +503,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>暗室を終了</Text>
             <Text style={styles.exitConfirmMessage}>
-              {isProcessingFilter
-                ? 'フィルム処理を中断して暗室を出ます。よろしいですか？'
-                : '暗室を出るとタイマーはリセットされます。よろしいですか？'}
+              今暗室を出ると光が入ってしまい、現像中の写真はすべて失敗します。本当に出ますか？
             </Text>
 
             <TouchableOpacity
               style={[styles.saveButton, styles.exitConfirmDangerButton]}
-              onPress={leaveDarkroom}
+              onPress={handleConfirmExit}
             >
               <Text style={styles.saveButtonText}>終了する</Text>
             </TouchableOpacity>

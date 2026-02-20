@@ -75,7 +75,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text style={{ color: 'white', textAlign: 'center', marginTop: 100 }}>カメラ権限が必要です</Text>
+        <Text style={styles.permissionText}>カメラ権限が必要です</Text>
         <TouchableOpacity onPress={requestPermission} style={styles.dashboardBtn}>
           <Text style={styles.btnText}>許可</Text>
         </TouchableOpacity>

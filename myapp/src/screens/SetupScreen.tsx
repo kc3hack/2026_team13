@@ -12,18 +12,11 @@ import {
   Platform,
   Linking,
   Image,
-  Dimensions,
-  StatusBar,
 } from 'react-native';
 import { saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
-import { styles } from '../styles/SetupScreen.styles';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const PARALLAX_FACTOR = 0.3;
-const PARALLAX_MAX_SCROLL = 500;
-const PARALLAX_OFFSET = PARALLAX_MAX_SCROLL * PARALLAX_FACTOR;
+import { PARALLAX_MAX_SCROLL, PARALLAX_OFFSET, styles } from '../styles/SetupScreen.styles';
 
 // Asset imports
 const BG_IMAGE = require('../../assets/images/KC3_Devit_background.png');
@@ -49,17 +42,21 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   });
 
   const handleContinue = async () => {
-    if (!username.trim()) {
+    const trimmedUsername = username.trim();
+    const trimmedToken = token.trim();
+    const trimmedGitEmail = gitEmail.trim();
+
+    if (!trimmedUsername) {
       Alert.alert('入力エラー', 'GitHub Usernameを入力してください。');
       return;
     }
-    if (!token.trim()) {
+    if (!trimmedToken) {
       Alert.alert('入力エラー', 'Personal Access Tokenを入力してください。');
       return;
     }
 
     setLoading(true);
-    const isValid = await verifyToken(token.trim());
+    const isValid = await verifyToken(trimmedToken);
     setLoading(false);
 
     if (!isValid) {
@@ -71,9 +68,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     }
 
     const settings: UserSettings = {
-      username: username.trim(),
-      token: token.trim(),
-      gitEmail: gitEmail.trim() || undefined,
+      username: trimmedUsername,
+      token: trimmedToken,
+      gitEmail: trimmedGitEmail || undefined,
     };
 
     await saveUserSettings(settings);

@@ -306,4 +306,12 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 2,
   },
+  permissionText: {
+    color: '#ccc',
+    fontFamily: 'Courier',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    marginBottom: 16,
+  },
 });
