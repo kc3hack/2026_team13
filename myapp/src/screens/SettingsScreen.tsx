@@ -90,6 +90,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
 
           <View style={styles.dashboard}>
             <Text style={[styles.systemText, regularFont]}>DEVIT // SETTINGS_CONFIG</Text>
+            <View style={styles.statusBlock}>
+              <Text style={[styles.systemText, regularFont]}>MODE: AUTH LINK</Text>
+              <Text style={[styles.systemText, regularFont]}>STATUS: ONLINE</Text>
+            </View>
           </View>
         </View>
 

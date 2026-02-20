@@ -72,6 +72,10 @@ export const styles = StyleSheet.create({
     marginBottom: 18,
     letterSpacing: 1,
   },
+  statusBlock: {
+    marginTop: 'auto',
+    marginBottom: 12,
+  },
   instruments: {
     gap: 14,
   },
