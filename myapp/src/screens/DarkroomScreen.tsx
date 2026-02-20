@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, BackHandler, Image, Modal, Platform, SafeAreaView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Image, Modal, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Audio } from 'expo-av'; //expoのAudioをインポート
 import { completeDevelopingSession, failDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri } from '../utils/sqlite';
 import { applyFilmEffectToPhoto } from '../utils/photoEffects';
@@ -16,7 +16,7 @@ interface DarkroomScreenProps {
   } | null;
 }
 
-const SESSION_SECONDS = 3600;
+const SESSION_SECONDS = 30;
 const MAX_SLOTS = 5;
 
 interface DevelopingPhoto {
@@ -54,7 +54,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const cancelProcessingRef = useRef(false);
   const finalizedSessionRef = useRef(false);
-  const waterEffectAnim = useRef(new Animated.Value(0)).current;
 
   const stopAndUnloadWaterSound = useCallback(async () => {
     const currentSound = waterSoundRef.current;
@@ -286,26 +285,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     };
   }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
 
-  useEffect(() => {
-    if (developingPhotos.length === 0 || isSessionCompleted) {
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.timing(waterEffectAnim, {
-        toValue: 1,
-        duration: 2200,
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-
-    return () => {
-      loop.stop();
-      waterEffectAnim.setValue(0);
-    };
-  }, [developingPhotos.length, isSessionCompleted, waterEffectAnim]);
-
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
     const minutes = Math.floor((remainingSeconds % 3600) / 60);
@@ -371,11 +350,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
     };
   }, [stopAndUnloadWaterSound]);
 
-  const shimmerTranslateX = waterEffectAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-120, 160],
-  });
-
   const renderSlot = (slot: DevelopingPhoto | null, index: number) => {
     if (!slot) {
       return (
@@ -395,23 +369,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
         <View style={styles.slotImageWrap}>
           <Image source={{ uri: slot.uri }} style={styles.slotImage} />
           {isMaskVisible && (
-            <>
-              <BlurView
-                intensity={56}
-                tint="dark"
-                experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-                style={styles.slotBlur}
-              />
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.waterShimmer,
-                  {
-                    transform: [{ translateX: shimmerTranslateX }],
-                  },
-                ]}
-              />
-            </>
+            <BlurView
+              intensity={56}
+              tint="dark"
+              experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+              style={styles.slotBlur}
+            />
           )}
         </View>
         <Text style={styles.slotStatus}>{isMaskVisible ? '現像中' : '現像完了'}</Text>
@@ -438,22 +401,33 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
       <View pointerEvents="none" style={styles.glowLarge} />
       <View pointerEvents="none" style={styles.glowSmall} />
 
-      {canShowBackButton && (
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-      )}
+      <View style={styles.mainContent}>
+        {canShowBackButton && (
+          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+        )}
 
-      <View style={styles.slotsWrap}>
-        <Text style={styles.pendingTitle}>現像タンク（最大5）</Text>
-        <View style={styles.slotsGrid}>{slots.map(renderSlot)}</View>
-      </View>
+        <View style={styles.slotsWrap}>
+          <Text style={styles.pendingTitle}>現像タンク（最大5）</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={215}
+            contentContainerStyle={styles.slotsScrollContent}
+            style={styles.slotsScroll}
+          >
+            {slots.map(renderSlot)}
+          </ScrollView>
+        </View>
 
-      <View style={styles.timerWrap}>
-        <Text style={styles.timerLabel}>DARKROOM SESSION</Text>
-        <Text style={styles.timerText}>{displayTime}</Text>
-        {isFinishingSession && <Text style={styles.processingText}>現像仕上げ中...</Text>}
-        {!isFinishingSession && completionMessage.length > 0 && <Text style={styles.processingText}>{completionMessage}</Text>}
+        <View style={styles.timerWrap}>
+          <Text style={styles.timerLabel}>DARKROOM SESSION</Text>
+          <Text style={styles.timerText}>{displayTime}</Text>
+          {isFinishingSession && <Text style={styles.processingText}>現像仕上げ中...</Text>}
+          {!isFinishingSession && completionMessage.length > 0 && <Text style={styles.processingText}>{completionMessage}</Text>}
+        </View>
       </View>
 
       <Modal
