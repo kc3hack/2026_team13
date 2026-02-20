@@ -9,11 +9,10 @@ import { styles } from '../styles/ImagePickerScreen.styles';
 
 interface ImagePickerScreenProps {
   onBack: () => void;
-  onGoDarkroom: (photo: { id: number; uri: string; filmId: number }) => void;
   onGoCamera: (filmType: RewardFilmType, filmId: number) => void;
 }
 
-export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, onGoDarkroom, onGoCamera }) => {
+export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, onGoCamera }) => {
   const [image, setImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
@@ -137,21 +136,10 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       };
 
       const persistedUri = await persistImageUri(uri);
-      const photoId = await addPhoto(persistedUri, selectedFilmId, 'undeveloped');
+      await addPhoto(persistedUri, selectedFilmId, 'undeveloped');
       setImage(persistedUri);
       await loadFilmState();
-
-      Alert.alert('保存完了', '今すぐ暗室（現像）に行きますか？', [
-        {
-          text: '行かない',
-          style: 'cancel',
-          onPress: () => onBack(),
-        },
-        {
-          text: '行く',
-          onPress: () => onGoDarkroom({ id: photoId, uri: persistedUri, filmId: selectedFilmId }),
-        },
-      ]);
+      onBack();
     } catch (e) {
       console.log(e);
       if (consumed && selectedFilmType) {

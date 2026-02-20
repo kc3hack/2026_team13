@@ -26,7 +26,6 @@ import { styles } from '../styles/AlbumScreen.styles';
 
 interface AlbumScreenProps {
   onBack: () => void;
-  onGoDarkroom: (photo: { id: number; uri: string; filmId: number }) => void;
 }
 
 type PhotoTab = 'developed' | 'undeveloped';
@@ -36,7 +35,7 @@ const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList
   React.useEffect(effect, deps);
 };
 
-export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }) => {
+export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
   const GRID_COLUMNS = 3;
   const GRID_SIDE_PADDING = 20;
   const GRID_GAP = 8;
@@ -395,16 +394,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
         },
       },
     ]);
-  };
-
-  const handleDevelop = (photo: PhotoWithFilmName) => {
-    closeActionMenu();
-    closeSelectedPhoto();
-    onGoDarkroom({
-      id: photo.id,
-      uri: photo.uri,
-      filmId: photo.film_id,
-    });
   };
 
   const resolveSavableUri = useCallback(async (uri: string): Promise<string> => {
@@ -779,12 +768,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoDarkroom }
           <Pressable style={styles.menuBackdropDismiss} onPress={closeActionMenu} />
           <View style={styles.menuSheet}>
             <Text style={styles.menuTitle}>写真アクション</Text>
-
-            {menuTargetPhoto?.status === 'undeveloped' && (
-              <TouchableOpacity style={styles.menuActionButton} onPress={() => menuTargetPhoto && handleDevelop(menuTargetPhoto)}>
-                <Text style={styles.menuActionText}>現像する</Text>
-              </TouchableOpacity>
-            )}
 
             {menuTargetPhoto?.status === 'developed' && (
               <TouchableOpacity
