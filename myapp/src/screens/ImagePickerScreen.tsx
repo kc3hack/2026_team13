@@ -202,9 +202,12 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
                 }}
                 disabled={saving || !isSelectable}
               >
-                <Text style={[styles.filmChipTitle, isSelected && styles.filmChipTitleSelected, !isSelectable && styles.filmChipTitleDisabled]}>
-                  {meta.emoji} {meta.label}
-                </Text>
+                <View style={styles.filmChipTitleRow}>
+                  <Image source={meta.image} style={styles.filmChipImage} />
+                  <Text style={[styles.filmChipTitle, isSelected && styles.filmChipTitleSelected, !isSelectable && styles.filmChipTitleDisabled]}>
+                    {meta.label}
+                  </Text>
+                </View>
                 <Text
                   style={[
                     styles.filmChipDesc,
