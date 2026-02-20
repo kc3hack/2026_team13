@@ -1,3 +1,4 @@
+import 'react-native-reanimated';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform, PanResponder, ActivityIndicator, Animated } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -26,9 +27,12 @@ interface SelectedFilm {
 }
 
 export default function App() {
+  // ★ 変更: 7セグメントフォントを追加
   const [fontsLoaded] = useFonts({
     cinecaption226: require('./assets/fonts/cinecaption226.ttf'),
+    'DSEG7Classic-Regular': require('./assets/fonts/DSEG7Classic-Regular.ttf'), 
   });
+  
   const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('Loading');
   const [selectedFilm, setSelectedFilm] = useState<SelectedFilm | null>(null);
@@ -40,7 +44,6 @@ export default function App() {
 
   const navigateTo = useCallback((screen: Screen) => {
     if (isTransitioning.current || screen === currentScreen) {
-      // Still allow state update if same screen (e.g. re-mount)
       if (screen === currentScreen) return;
       setCurrentScreen(screen);
       return;
@@ -81,7 +84,6 @@ export default function App() {
     return true;
   };
 
-  // Control BGM based on current screen
   useEffect(() => {
     if (currentScreen === 'Camera') {
       startBGM();
@@ -90,12 +92,11 @@ export default function App() {
     }
   }, [currentScreen, startBGM, stopBGM]);
 
-  // Lock orientation to landscape globally
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
   }, []);
 
-  // Initialize database & check first-launch on app start
+  // ★ 変更: フォントの読み込みが終わってからDB初期化と画面遷移を行うように修正
   useEffect(() => {
     const bootstrap = async () => {
       await initDb().catch((err: unknown) => console.log('DB init error', err));
@@ -106,8 +107,12 @@ export default function App() {
         setCurrentScreen('Setup');
       }
     };
-    bootstrap();
-  }, []);
+
+    // フォントがロードされたら起動処理を開始する
+    if (fontsLoaded) {
+      bootstrap();
+    }
+  }, [fontsLoaded]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {
@@ -116,7 +121,6 @@ export default function App() {
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       return handleAppBackLikeAction();
-
     });
 
     return () => subscription.remove();
@@ -146,7 +150,12 @@ export default function App() {
   const renderContent = () => {
       switch (currentScreen) {
           case 'Loading':
-              return null;
+              // ★ 変更: ローディング中（フォントやDBの準備中）はインジケーターを表示
+              return (
+                <View style={styles.loadingWrap}>
+                  <ActivityIndicator size="large" color="#D41414" />
+                </View>
+              );
           case 'Setup':
               return (
                   <SetupScreen
@@ -204,6 +213,7 @@ export default function App() {
               return (
                 <DarkroomScreen
                   onBack={() => navigateTo('Camera')}
+                  onGoSettings={() => navigateTo('Settings')}
                 />
               );
           default:
@@ -236,5 +246,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#050505',
   },
 });

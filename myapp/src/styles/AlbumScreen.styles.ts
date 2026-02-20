@@ -33,7 +33,13 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   filmBadgeEmoji: {
-    fontSize: 14,
+    fontSize: 16,
+    marginRight: 6,
+  },
+  filmBadgeImage: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
   },
   filmBadgeCount: {
     color: '#fff',

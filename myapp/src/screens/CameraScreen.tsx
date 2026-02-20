@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES, RewardFilmType } from '../types';
 import { styles } from '../styles/CameraScreen.styles';
+import { ShutterOverlay } from '../components/ShutterOverlay';
 
 const FILM_ID_MAP: Record<RewardFilmType, number> = { mono: 11, vivid: 12, retro: 13 };
 
@@ -24,6 +25,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const [isShooting, setIsShooting] = useState(false);
+  const [shutterTrigger, setShutterTrigger] = useState(0);
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
   const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
     filmType && FILM_TYPES.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
@@ -98,6 +100,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
 
     try {
       setIsShooting(true);
+      setShutterTrigger((prev) => prev + 1);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       
       const photoData = await cameraRef.current.takePictureAsync();
@@ -132,7 +135,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
           const meta = FILM_META[type];
           return (
             <View key={type} style={styles.filmBadge}>
-              <Text style={styles.filmBadgeEmoji}>{meta.emoji}</Text>
+              <Image source={meta.image} style={styles.filmBadgeImage} />
               <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
             </View>
           );
@@ -175,7 +178,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                         Haptics.selectionAsync();
                       }}
                     >
-                      <Text style={styles.filmSelectEmoji}>{meta.emoji}</Text>
+                      <Image source={meta.image} style={styles.filmSelectImage} />
                       <Text style={[styles.filmSelectLabel, isSelected && styles.filmSelectLabelActive]}>
                         {meta.label}
                       </Text>
@@ -215,24 +218,21 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
 
         <View style={styles.cameraRig}>
           <View style={styles.previewContainer}>
-            {selectedFilm ? (
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              zoom={zoom}
+              flash={flash}
+              ref={cameraRef}
+            />
+            {canShoot && (
               <>
-                <CameraView
-                  style={styles.camera}
-                  facing="back"
-                  zoom={zoom}
-                  flash={flash}
-                  ref={cameraRef}
-                />
                 <View style={styles.crosshairVertical} />
                 <View style={styles.crosshairHorizontal} />
                 <View style={styles.recDot} />
               </>
-            ) : (
-              <View style={styles.cameraOff}>
-                <Text style={styles.cameraOffText}>NO FILM</Text>
-              </View>
             )}
+            <ShutterOverlay width={240} height={180} isOpen={canShoot} shutterTrigger={shutterTrigger} />
           </View>
 
           <View style={styles.grip}>

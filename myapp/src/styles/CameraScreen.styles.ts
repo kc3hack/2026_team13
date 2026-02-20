@@ -30,8 +30,10 @@ export const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  filmBadgeEmoji: {
-    fontSize: 14,
+  filmBadgeImage: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
   },
   filmBadgeCount: {
     color: '#fff',
@@ -177,8 +179,10 @@ export const styles = StyleSheet.create({
     borderColor: '#00ff00',
     backgroundColor: 'rgba(0,255,0,0.08)',
   },
-  filmSelectEmoji: {
-    fontSize: 16,
+  filmSelectImage: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
   },
   filmSelectLabel: {
     color: '#888',
