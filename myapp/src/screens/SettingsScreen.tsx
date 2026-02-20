@@ -7,7 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ScrollView,
 } from 'react-native';
 import { getUserSettings, saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
@@ -65,81 +64,81 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onCancel} style={styles.backTouchable}>
-          <Text style={styles.backText}>{'< ABORT'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>CONFIG // TERMINAL</Text>
-      </View>
+      <TouchableOpacity onPress={onCancel} style={styles.backTouchable}>
+        <Text style={styles.backText}>{'< ABORT'}</Text>
+      </TouchableOpacity>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.sectionTitle}>AUTH PROFILE</Text>
-
-        <View style={styles.sectionCard}>
-          <View style={styles.inputRow}>
-            <Text style={styles.label}>USERNAME</Text>
-            <View style={styles.inputWrap}>
-              <TextInput
-              style={styles.input}
-              value={username}
-              onChangeText={setUsername}
-              placeholder="e.g. octocat"
-              placeholderTextColor="#5a805a"
-              autoCapitalize="none"
-            />
-            </View>
+      <View style={styles.mainLayout}>
+        <View style={styles.leftPanel}>
+          <View style={styles.gripDecor}>
+            <View style={[styles.navSquare, styles.navSquareActive]} />
+            <View style={styles.gripLine} />
+            <View style={styles.navSquare} />
+            <View style={styles.gripLine} />
+            <View style={styles.navSquare} />
           </View>
 
-          <View style={styles.inputRow}>
-            <Text style={styles.label}>PAT TOKEN</Text>
-            <View style={styles.inputWrap}>
-              <TextInput
-              style={styles.input}
-              value={token}
-              onChangeText={setToken}
-              placeholder="github_pat_..."
-              placeholderTextColor="#5a805a"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-              <Text style={styles.helperText}>Contents: Read-only</Text>
-            </View>
-          </View>
-
-          <View style={[styles.inputRow, styles.inputRowLast]}>
-            <Text style={styles.label}>GIT EMAIL</Text>
-            <View style={styles.inputWrap}>
-              <TextInput
-              style={styles.input}
-              value={gitEmail}
-              onChangeText={setGitEmail}
-              placeholder="email@example.com"
-              placeholderTextColor="#5a805a"
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
+          <View style={styles.dashboard}>
+            <Text style={styles.systemText}>DEVIT // SETTINGS_CONFIG</Text>
+            <View style={styles.instruments}>
+              <View>
+              </View>
             </View>
           </View>
         </View>
-      </ScrollView>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={[styles.footerBtn, styles.cancelBtn]} onPress={onCancel}>
-          <Text style={styles.cancelBtnText}>CANCEL</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.footerBtn, styles.saveBtn, loading && styles.disabledBtn]}
-          onPress={handleSave}
-          disabled={loading}
-        >
-          <Text style={styles.saveBtnText}>{loading ? 'VERIFYING...' : 'SAVE'}</Text>
-        </TouchableOpacity>
+        <View style={styles.rightPanel}>
+          <Text style={styles.sectionTitle}>AUTH PROFILE</Text>
+
+          <View style={styles.formCard}>
+            <View style={styles.formRow}>
+              <Text style={styles.label}>USERNAME</Text>
+              <TextInput
+                style={styles.input}
+                value={username}
+                onChangeText={setUsername}
+                placeholder="e.g. octocat"
+                placeholderTextColor="#5a805a"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.formRow}>
+              <Text style={styles.label}>PAT TOKEN</Text>
+              <TextInput
+                style={styles.input}
+                value={token}
+                onChangeText={setToken}
+                placeholder="github_pat_..."
+                placeholderTextColor="#5a805a"
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              <Text style={styles.helperText}>Contents: Read-only</Text>
+            </View>
+
+            <View style={styles.formRowLast}>
+              <Text style={styles.label}>GIT EMAIL</Text>
+              <TextInput
+                style={styles.input}
+                value={gitEmail}
+                onChangeText={setGitEmail}
+                placeholder="email@example.com"
+                placeholderTextColor="#5a805a"
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveBtn, loading && styles.disabledBtn]}
+              onPress={handleSave}
+              disabled={loading}
+            >
+              <Text style={styles.saveBtnText}>{loading ? 'VERIFYING...' : 'SAVE'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </SafeAreaView>
   );
