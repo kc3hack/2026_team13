@@ -164,10 +164,6 @@ export default function App() {
               return (
                   <ImagePickerScreen 
                       onBack={() => navigateTo('Camera')}
-                      onGoDarkroom={(photo) => {
-                        setPendingDevelopPhoto(photo);
-                        navigateTo('Darkroom');
-                      }}
                       onGoCamera={(filmType, filmId) => {
                         setSelectedFilm({ type: filmType, id: filmId });
                         navigateTo('Camera');
@@ -208,7 +204,6 @@ export default function App() {
               return (
                 <DarkroomScreen
                   onBack={() => navigateTo('Camera')}
-                  photo={pendingDevelopPhoto}
                 />
               );
           default:
