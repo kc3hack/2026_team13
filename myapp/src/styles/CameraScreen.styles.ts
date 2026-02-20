@@ -160,20 +160,25 @@ export const styles = StyleSheet.create({
   },
 
   /* Film selection */
+  filmSelectScroll: {
+    width: '100%',
+  },
   filmSelectRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 4,
+    paddingRight: 6,
   },
   filmSelectBtn: {
     borderWidth: 1,
     borderColor: '#444',
     borderRadius: 4,
     paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 4,
     alignItems: 'center',
     gap: 2,
-    minWidth: 64,
+    width: 60,
   },
   filmSelectBtnActive: {
     borderColor: '#00ff00',
@@ -187,8 +192,9 @@ export const styles = StyleSheet.create({
   filmSelectLabel: {
     color: '#888',
     fontFamily: 'Courier',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   filmSelectLabelActive: {
     color: '#fff',

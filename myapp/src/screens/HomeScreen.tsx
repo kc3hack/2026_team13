@@ -14,7 +14,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useGithubCommits } from '../hooks/useGithubCommits';
-import { FILM_META } from '../types';
+import { FILM_META, RewardFilmType } from '../types';
 import { addFilm } from '../utils/sqlite';
 import { getMenuBackgroundMode, MenuBackgroundMode, setMenuBackgroundMode } from '../utils/storage';
 import { styles } from '../styles/HomeScreen.styles';
@@ -145,7 +145,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     );
   };
 
-  const handleAddDebugFilm = async (type: 'mono' | 'vivid' | 'retro') => {
+  const handleAddDebugFilm = async (type: RewardFilmType) => {
     try {
       await addFilm(type);
       await refreshInventory();
@@ -177,6 +177,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
             <Image source={FILM_META.retro.image} style={styles.filmBadgeImage} />
             <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{filmInventory.retro}</Text>
+          </View>
+          <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.disposable.emoji} {filmInventory.disposable}</Text>
+          </View>
+          <View style={[styles.filmBadge, isMenuDark && styles.filmBadgeDark]}>
+            <Text style={[styles.filmBadgeText, isMenuDark && styles.homeTextDark]}>{FILM_META.soft.emoji} {filmInventory.soft}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.menuButton} onPress={openMenu}>
@@ -274,6 +280,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <TouchableOpacity style={[styles.debugAction, isMenuDark && styles.debugActionDark]} onPress={() => handleAddDebugFilm('retro')}>
               <Text style={[styles.debugActionText, isMenuDark && styles.menuSubTextDark]}>📼 レトロを追加（所持: {filmInventory.retro}）</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.debugAction, isMenuDark && styles.debugActionDark]} onPress={() => handleAddDebugFilm('disposable')}>
+              <Text style={[styles.debugActionText, isMenuDark && styles.menuSubTextDark]}>🧃 Disposableを追加（所持: {filmInventory.disposable}）</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.debugAction, isMenuDark && styles.debugActionDark]} onPress={() => handleAddDebugFilm('soft')}>
+              <Text style={[styles.debugActionText, isMenuDark && styles.menuSubTextDark]}>☁️ Softを追加（所持: {filmInventory.soft}）</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={[styles.settingsAction, isMenuDark && styles.settingsActionDark]} onPress={onOpenSettings}>
               <Text style={[styles.settingsActionText, isMenuDark && styles.menuTextDark]}>Settings</Text>
             </TouchableOpacity>
