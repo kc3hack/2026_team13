@@ -317,7 +317,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           const meta = FILM_META[type];
           return (
             <View key={type} style={albumStyles.filmBadge}>
-              <Text style={albumStyles.filmBadgeEmoji}>{meta.emoji}</Text>
+              <Image source={meta.image} style={albumStyles.filmBadgeImage} />
               <Text style={albumStyles.filmBadgeCount}>{filmInventory[type]}</Text>
             </View>
           );
@@ -353,7 +353,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                   <Text style={[
                     darkroomStyles.statusValue, 
                     { 
-                      fontSize: 48,           // 7セグメントが映えるように大きく
+                      fontSize: 44,           // 7セグメントが映えるように大きく
                       fontWeight: 'normal',   // デジタルフォントはnormal推奨
                       color: '#D41414', 
                       letterSpacing: 2, 
