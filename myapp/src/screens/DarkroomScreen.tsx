@@ -11,7 +11,7 @@ interface DarkroomScreenProps {
   onBack: () => void;
 }
 
-const SESSION_SECONDS = 3600;
+const SESSION_SECONDS = 10;
 const MAX_SLOTS = 5;
 
 interface DevelopingPhoto {
