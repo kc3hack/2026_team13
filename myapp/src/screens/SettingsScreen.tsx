@@ -86,13 +86,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
 
       <View style={styles.mainLayout}>
         <View style={styles.leftPanel}>
-          <View style={styles.gripDecor}>
-            <View style={[styles.navSquare, styles.navSquareActive]} />
-            <View style={styles.gripLine} />
-            <View style={styles.navSquare} />
-            <View style={styles.gripLine} />
-            <View style={styles.navSquare} />
-          </View>
+          <View style={styles.gripDecor} />
 
           <View style={styles.dashboard}>
             <Text style={[styles.systemText, regularFont]}>DEVIT // SETTINGS_CONFIG</Text>
