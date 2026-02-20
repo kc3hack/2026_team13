@@ -6,6 +6,7 @@ import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES, RewardFilmType } from '../types';
 import { styles } from '../styles/CameraScreen.styles';
+import { ShutterOverlay } from '../components/ShutterOverlay';
 
 const FILM_ID_MAP: Record<RewardFilmType, number> = { mono: 11, vivid: 12, retro: 13 };
 
@@ -24,6 +25,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const [isShooting, setIsShooting] = useState(false);
+  const [shutterTrigger, setShutterTrigger] = useState(0);
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
   const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
     filmType && FILM_TYPES.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
@@ -98,6 +100,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
 
     try {
       setIsShooting(true);
+      setShutterTrigger((prev) => prev + 1);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       
       const photoData = await cameraRef.current.takePictureAsync();
@@ -215,24 +218,21 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
 
         <View style={styles.cameraRig}>
           <View style={styles.previewContainer}>
-            {selectedFilm ? (
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              zoom={zoom}
+              flash={flash}
+              ref={cameraRef}
+            />
+            {canShoot && (
               <>
-                <CameraView
-                  style={styles.camera}
-                  facing="back"
-                  zoom={zoom}
-                  flash={flash}
-                  ref={cameraRef}
-                />
                 <View style={styles.crosshairVertical} />
                 <View style={styles.crosshairHorizontal} />
                 <View style={styles.recDot} />
               </>
-            ) : (
-              <View style={styles.cameraOff}>
-                <Text style={styles.cameraOffText}>NO FILM</Text>
-              </View>
             )}
+            <ShutterOverlay width={240} height={180} isOpen={canShoot} shutterTrigger={shutterTrigger} />
           </View>
 
           <View style={styles.grip}>
