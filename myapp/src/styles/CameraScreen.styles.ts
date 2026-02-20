@@ -5,26 +5,100 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#050505',
   },
+
+  /* ── Top bar (same as AlbumScreen) ── */
+  topBar: {
+    position: 'absolute',
+    top: 10,
+    right: 0,
+    left: '42%',
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingRight: 24,
+    gap: 8,
+  },
+  filmBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  filmBadgeEmoji: {
+    fontSize: 14,
+  },
+  filmBadgeCount: {
+    color: '#fff',
+    fontFamily: 'Courier',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  topBarButton: {
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  topBarButtonText: {
+    color: '#ccc',
+    fontSize: 18,
+    fontFamily: 'Courier',
+    fontWeight: 'bold',
+  },
+
+  /* ── Main layout ── */
   mainLayout: {
     flex: 1,
     flexDirection: 'row',
   },
-  backButton: {
-    position: 'absolute',
-    top: 20,
-    left: 40,
-    zIndex: 10,
+
+  /* ── Left panel (grip + dashboard, matching AlbumScreen) ── */
+  leftPanel: {
+    flex: 0.42,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  backButtonText: {
-    color: '#ff4444',
-    fontFamily: 'Courier',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  dashboard: {
-    flex: 1.2,
-    paddingLeft: 40,
+
+  /* Navigation bar (left edge) */
+  gripDecor: {
+    width: 28,
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginLeft: 4,
+  },
+  navSquare: {
+    width: 8,
+    height: 8,
+    borderWidth: 1,
+    borderColor: '#555',
+    backgroundColor: 'transparent',
+  },
+  navSquareActive: {
+    backgroundColor: '#888',
+    borderColor: '#888',
+  },
+  gripLine: {
+    width: 1,
+    height: 10,
+    backgroundColor: '#333',
+  },
+
+  /* Dashboard (matching AlbumScreen padding) */
+  dashboard: {
+    flex: 1,
+    alignSelf: 'stretch',
+    paddingLeft: 24,
+    paddingTop: 80,
+    justifyContent: 'flex-start',
   },
   systemText: {
     color: '#00ff00',
@@ -82,11 +156,66 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
   },
+
+  /* Film selection */
+  filmSelectRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 4,
+  },
+  filmSelectBtn: {
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    gap: 2,
+    minWidth: 64,
+  },
+  filmSelectBtnActive: {
+    borderColor: '#00ff00',
+    backgroundColor: 'rgba(0,255,0,0.08)',
+  },
+  filmSelectEmoji: {
+    fontSize: 16,
+  },
+  filmSelectLabel: {
+    color: '#888',
+    fontFamily: 'Courier',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  filmSelectLabelActive: {
+    color: '#fff',
+  },
+  filmSelectCount: {
+    color: '#666',
+    fontFamily: 'Courier',
+    fontSize: 10,
+  },
+  filmSelectCountEmpty: {
+    color: '#ff4444',
+  },
+  warningText: {
+    color: '#ff4444',
+    fontFamily: 'Courier',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  hintText: {
+    color: '#555',
+    fontFamily: 'Courier',
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  /* ── Right side: camera rig ── */
   cameraRig: {
-    flex: 1,
+    flex: 0.58,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     paddingRight: 40,
   },
   previewContainer: {
@@ -156,5 +285,25 @@ export const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: '#ff4444',
+  },
+  shutterDisabled: {
+    borderColor: '#333',
+    backgroundColor: '#222',
+  },
+  shutterInnerDisabled: {
+    backgroundColor: '#444',
+  },
+  cameraOff: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111',
+  },
+  cameraOffText: {
+    color: '#444',
+    fontFamily: 'Courier',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 2,
   },
 });

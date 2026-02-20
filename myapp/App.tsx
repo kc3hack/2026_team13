@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform, PanResponder } from 'react-native';
-import { HomeScreen } from './src/screens/HomeScreen';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform, PanResponder, ActivityIndicator, Animated } from 'react-native';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { useFonts } from 'expo-font';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SetupScreen } from './src/screens/SetupScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
@@ -11,7 +12,7 @@ import { initDb } from './src/utils/sqlite';
 import { getUserSettings, clearUserSettings } from './src/utils/storage';
 import { CameraScreen } from './src/screens/CameraScreen';
 
-type Screen = 'Loading' | 'Setup' | 'Home' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom' | 'Camera';
+type Screen = 'Loading' | 'Setup' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom' | 'Camera';
 
 interface PendingDevelopPhoto {
   id: number;
@@ -25,33 +26,74 @@ interface SelectedFilm {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    cinecaption226: require('./assets/fonts/cinecaption226.ttf'),
+  });
   const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('Loading');
   const [selectedFilm, setSelectedFilm] = useState<SelectedFilm | null>(null);
   const { startBGM, stopBGM } = useBGM();
 
+  // ── Fade transition ──
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const isTransitioning = useRef(false);
+
+  const navigateTo = useCallback((screen: Screen) => {
+    if (isTransitioning.current || screen === currentScreen) {
+      // Still allow state update if same screen (e.g. re-mount)
+      if (screen === currentScreen) return;
+      setCurrentScreen(screen);
+      return;
+    }
+    isTransitioning.current = true;
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setCurrentScreen(screen);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => {
+        isTransitioning.current = false;
+      });
+    });
+  }, [currentScreen, fadeAnim]);
+
   const handleAppBackLikeAction = (): boolean => {
-    if (currentScreen === 'Home' || currentScreen === 'Setup' || currentScreen === 'Loading') {
+    if (currentScreen === 'Camera' || currentScreen === 'Setup' || currentScreen === 'Loading') {
       return true;
     }
 
-    if (currentScreen === 'Camera') {
-      setCurrentScreen('ImagePicker');
+    if (currentScreen === 'Settings' || currentScreen === 'Album' || currentScreen === 'Darkroom') {
+      navigateTo('Camera');
       return true;
     }
 
-    setCurrentScreen('Home');
+    if (currentScreen === 'ImagePicker') {
+      navigateTo('Camera');
+      return true;
+    }
+
+    navigateTo('Camera');
     return true;
   };
 
   // Control BGM based on current screen
   useEffect(() => {
-    if (currentScreen === 'Home') {
+    if (currentScreen === 'Camera') {
       startBGM();
     } else {
       stopBGM();
     }
   }, [currentScreen, startBGM, stopBGM]);
+
+  // Lock orientation to landscape globally
+  useEffect(() => {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+  }, []);
 
   // Initialize database & check first-launch on app start
   useEffect(() => {
@@ -59,7 +101,7 @@ export default function App() {
       await initDb().catch((err: unknown) => console.log('DB init error', err));
       const settings = await getUserSettings();
       if (settings?.username && settings?.token) {
-        setCurrentScreen('Home');
+        setCurrentScreen('Camera');
       } else {
         setCurrentScreen('Setup');
       }
@@ -98,7 +140,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await clearUserSettings();
-    setCurrentScreen('Setup');
+    navigateTo('Setup');
   };
 
   const renderContent = () => {
@@ -108,71 +150,64 @@ export default function App() {
           case 'Setup':
               return (
                   <SetupScreen
-                      onComplete={() => setCurrentScreen('Home')}
-                  />
-              );
-          case 'Home':
-              return (
-                  <HomeScreen 
-                      onOpenSettings={() => setCurrentScreen('Settings')}
-                      onOpenImagePicker={() => setCurrentScreen('ImagePicker')}
-                      onOpenAlbum={() => setCurrentScreen('Album')}
-                      onOpenDarkroom={() => {
-                        setPendingDevelopPhoto(null);
-                        setCurrentScreen('Darkroom');
-                      }}
-                  onLogout={handleLogout}
+                      onComplete={() => navigateTo('Camera')}
                   />
               );
           case 'Settings':
               return (
                   <SettingsScreen 
-                      onSave={() => setCurrentScreen('Home')}
-                      onCancel={() => setCurrentScreen('Home')}
+                      onSave={() => navigateTo('Camera')}
+                      onCancel={() => navigateTo('Camera')}
                   />
               );
           case 'ImagePicker':
               return (
                   <ImagePickerScreen 
-                      onBack={() => setCurrentScreen('Home')}
+                      onBack={() => navigateTo('Camera')}
                       onGoDarkroom={(photo) => {
                         setPendingDevelopPhoto(photo);
-                        setCurrentScreen('Darkroom');
+                        navigateTo('Darkroom');
                       }}
                       onGoCamera={(filmType, filmId) => {
                         setSelectedFilm({ type: filmType, id: filmId });
-                        setCurrentScreen('Camera');
-                        // setScreen('camera');
+                        navigateTo('Camera');
                       }}
                   />
               );
-              case 'Camera':
+          case 'Camera':
               return (
-                  // 5. CameraScreenの呼び出し
                   <CameraScreen 
                       filmType={selectedFilm?.type}
                       filmId={selectedFilm?.id}
-                  onBack={() => setCurrentScreen('ImagePicker')}
+                      onBack={() => navigateTo('ImagePicker')}
                       onGoDarkroom={(photo: PendingDevelopPhoto) => {
                           setPendingDevelopPhoto(photo);
-                          setCurrentScreen('Darkroom');
+                          navigateTo('Darkroom');
                       }}
+                      onGoAlbum={() => navigateTo('Album')}
+                      onGoDarkroomScreen={() => {
+                          setPendingDevelopPhoto(null);
+                          navigateTo('Darkroom');
+                      }}
+                      onGoSettings={() => navigateTo('Settings')}
                   />
               );
-            case 'Album':
+          case 'Album':
               return (
                 <AlbumScreen
-                  onBack={() => setCurrentScreen('Home')}
+                  onBack={() => navigateTo('Camera')}
+                  onGoCamera={() => navigateTo('Camera')}
+                  onGoSettings={() => navigateTo('Settings')}
                   onGoDarkroom={(photo) => {
                     setPendingDevelopPhoto(photo);
-                    setCurrentScreen('Darkroom');
+                    navigateTo('Darkroom');
                   }}
                 />
               );
-            case 'Darkroom':
+          case 'Darkroom':
               return (
                 <DarkroomScreen
-                  onBack={() => setCurrentScreen('Home')}
+                  onBack={() => navigateTo('Camera')}
                   photo={pendingDevelopPhoto}
                 />
               );
@@ -181,30 +216,20 @@ export default function App() {
       }
   };
 
-  // SetupScreen is rendered full-screen (outside SafeAreaView)
-  if (currentScreen === 'Setup' || currentScreen === 'Camera') {
-    return (
-      <View style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
-        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-        {renderContent()}
-      </View>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.content}>
+    <View style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {renderContent()}
-      </View>
-    </SafeAreaView>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#050505',
   },
   content: {
     flex: 1,
