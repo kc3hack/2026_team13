@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
+<<<<<<< HEAD
 import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder } from 'react-native';
+=======
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions } from 'react-native';
+>>>>>>> 0ef98fab62e64eeda60d510ffc820b2b0eac8cb2
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as ImageManipulator from 'expo-image-manipulator'; // 追加
@@ -9,7 +13,13 @@ import { FilmInventory, FILM_META, FILM_TYPES, RewardFilmType } from '../types';
 import { styles } from '../styles/CameraScreen.styles';
 import { ShutterOverlay } from '../components/ShutterOverlay';
 
-const FILM_ID_MAP: Record<RewardFilmType, number> = { mono: 11, vivid: 12, retro: 13 };
+const FILM_ID_MAP: Record<RewardFilmType, number> = {
+  mono: 11,
+  vivid: 12,
+  retro: 13,
+  disposable: 14,
+  soft: 15,
+};
 
 interface CameraScreenProps {
     filmType?: string;
@@ -22,18 +32,35 @@ interface CameraScreenProps {
 }
 
 export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, onBack, onGoDarkroom, onGoAlbum, onGoDarkroomScreen, onGoSettings }) => {
+  const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const [isShooting, setIsShooting] = useState(false);
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({
+    mono: 0,
+    vivid: 0,
+    retro: 0,
+    disposable: 0,
+    soft: 0,
+  });
   const [shutterTrigger, setShutterTrigger] = useState(0);
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
   const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
     filmType && FILM_TYPES.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
   );
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
   const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
+
+  const topBarLeft = width * 0.42;
+  const previewHeight = Math.max(140, Math.min(260, Math.round(height * 0.38)));
+  const previewWidth = Math.round(previewHeight * (4 / 3));
+  const gripHeight = previewHeight;
+  const gripWidth = Math.max(64, Math.min(96, Math.round(previewHeight * 0.42)));
+  const shutterButtonSize = Math.max(44, Math.min(64, Math.round(previewHeight * 0.31)));
+  const shutterInnerSize = Math.round(shutterButtonSize * 0.78);
+
+  const getFilmDisplayName = (type: RewardFilmType): string => type;
   
   const cameraRef = useRef<CameraView>(null);
   const { checkForCommits } = useGithubCommits();
@@ -148,7 +175,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   return (
     <SafeAreaView style={styles.container} {...swipePanResponder.panHandlers}>
       {/* Top bar: film inventory + refresh + settings */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { left: topBarLeft }]}>
         {FILM_TYPES.map((type) => {
           const meta = FILM_META[type];
           return (
@@ -182,7 +209,12 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
             
             <View style={styles.instruments}>
               <Text style={styles.label}>[ FILM_TYPE ]</Text>
-              <View style={styles.filmSelectRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filmSelectScroll}
+                contentContainerStyle={styles.filmSelectRow}
+              >
                 {FILM_TYPES.map((type) => {
                   const meta = FILM_META[type];
                   const isSelected = selectedFilm === type;
@@ -198,7 +230,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                     >
                       <Text style={styles.filmSelectEmoji}>{meta.emoji}</Text>
                       <Text style={[styles.filmSelectLabel, isSelected && styles.filmSelectLabelActive]}>
-                        {meta.label}
+                        {getFilmDisplayName(type)}
                       </Text>
                       <Text style={[styles.filmSelectCount, count === 0 && styles.filmSelectCountEmpty]}>
                         x{count}
@@ -206,7 +238,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+              </ScrollView>
               {selectedFilm && filmInventory[selectedFilm] === 0 && (
                 <Text style={styles.warningText}>⚠ フィルムがありません</Text>
               )}
@@ -235,7 +267,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
         </View>
 
         <View style={styles.cameraRig}>
-          <View style={styles.previewContainer}>
+          <View style={[styles.previewContainer, { width: previewWidth, height: previewHeight }]}>
             <CameraView
               style={styles.camera}
               facing="back"
@@ -250,13 +282,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                 <View style={styles.recDot} />
               </>
             )}
-            <ShutterOverlay width={240} height={180} isOpen={canShoot} shutterTrigger={shutterTrigger} />
+            <ShutterOverlay width={previewWidth} height={previewHeight} isOpen={canShoot} shutterTrigger={shutterTrigger} />
           </View>
 
-          <View style={styles.grip}>
+          <View style={[styles.grip, { width: gripWidth, height: gripHeight }]}>
             <TouchableOpacity 
               style={[
                 styles.shutterButton,
+                { width: shutterButtonSize, height: shutterButtonSize, borderRadius: shutterButtonSize / 2 },
                 isShooting && { borderColor: '#ff4444' },
                 !canShoot && styles.shutterDisabled,
               ]}
@@ -265,6 +298,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
             >
               <View style={[
                 styles.shutterInner,
+                { width: shutterInnerSize, height: shutterInnerSize, borderRadius: shutterInnerSize / 2 },
                 isShooting && { backgroundColor: '#cc0000' },
                 !canShoot && styles.shutterInnerDisabled,
               ]} />

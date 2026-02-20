@@ -36,7 +36,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [completionMessage, setCompletionMessage] = useState('');
   const [isFinishingSession, setIsFinishingSession] = useState(false);
   const [rightPanelDim, setRightPanelDim] = useState({ width: 0, height: 0 });
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 });
   
   // ★ 追加: INFO表示用のカウントステート
   const [developingCount, setDevelopingCount] = useState(0);
@@ -97,7 +97,19 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (cancelProcessingRef.current) return;
       try {
         const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
-        const effectType = resolvedEffectType ?? 'mono';
+        const effectType =
+          resolvedEffectType
+          ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
+            ? 'mono'
+            : targetPhoto.filmId === 2 || targetPhoto.filmId === 12
+              ? 'vivid'
+              : targetPhoto.filmId === 3 || targetPhoto.filmId === 13
+                ? 'retro'
+                : targetPhoto.filmId === 4 || targetPhoto.filmId === 14
+                  ? 'disposable'
+                  : targetPhoto.filmId === 5 || targetPhoto.filmId === 15
+                    ? 'soft'
+                    : 'mono');
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelProcessingRef.current,
         });
@@ -317,7 +329,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           const meta = FILM_META[type];
           return (
             <View key={type} style={albumStyles.filmBadge}>
-              <Text style={albumStyles.filmBadgeEmoji}>{meta.emoji}</Text>
+              <Image source={meta.image} style={albumStyles.filmBadgeImage} />
               <Text style={albumStyles.filmBadgeCount}>{filmInventory[type]}</Text>
             </View>
           );
@@ -353,7 +365,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                   <Text style={[
                     darkroomStyles.statusValue, 
                     { 
-                      fontSize: 48,           // 7セグメントが映えるように大きく
+                      fontSize: 44,           // 7セグメントが映えるように大きく
                       fontWeight: 'normal',   // デジタルフォントはnormal推奨
                       color: '#D41414', 
                       letterSpacing: 2, 

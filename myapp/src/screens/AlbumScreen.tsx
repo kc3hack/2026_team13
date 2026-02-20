@@ -75,7 +75,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 });
   const [currentPage, setCurrentPage] = useState(0);
 
   const { checkForCommits } = useGithubCommits();
@@ -613,7 +613,7 @@ const handleCheckCommits = async () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Top-right toolbar: film inventory + refresh + settings */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { left: screenWidth * 0.42 }]}> 
         {FILM_TYPES.map((type) => {
           const meta = FILM_META[type];
           return (

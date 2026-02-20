@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
   container: {
@@ -9,7 +9,7 @@ export const styles = StyleSheet.create({
   /* ── Top bar (same as AlbumScreen) ── */
   topBar: {
     position: 'absolute',
-    top: 10,
+    top: Platform.OS === 'android' ? 20 : 10,
     right: 0,
     left: '42%',
     zIndex: 20,
@@ -158,20 +158,25 @@ export const styles = StyleSheet.create({
   },
 
   /* Film selection */
+  filmSelectScroll: {
+    width: '100%',
+  },
   filmSelectRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 4,
+    paddingRight: 6,
   },
   filmSelectBtn: {
     borderWidth: 1,
     borderColor: '#444',
     borderRadius: 4,
     paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 4,
     alignItems: 'center',
     gap: 2,
-    minWidth: 64,
+    width: 60,
   },
   filmSelectBtnActive: {
     borderColor: '#00ff00',
@@ -183,8 +188,9 @@ export const styles = StyleSheet.create({
   filmSelectLabel: {
     color: '#888',
     fontFamily: 'Courier',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   filmSelectLabelActive: {
     color: '#fff',
@@ -216,7 +222,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingRight: 40,
+    paddingRight: 20,
   },
   previewContainer: {
     width: 270,

@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
   /* ── Top bar (film badges + refresh + settings) ── */
   topBar: {
     position: 'absolute',
-    top: 10,
+    top: Platform.OS === 'android' ? 20 : 10,
     right: 0,
     left: '42%',
     zIndex: 20,
@@ -445,7 +445,7 @@ detailFooterText: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: 8,
-    backgroundColor: '#eee',
+    backgroundColor: '#1f1f1f',
   },
 
   /* ── Detail photo modal (fallback overlay) ── */
