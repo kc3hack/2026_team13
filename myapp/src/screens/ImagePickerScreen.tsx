@@ -139,7 +139,6 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       await addPhoto(persistedUri, selectedFilmId, 'undeveloped');
       setImage(persistedUri);
       await loadFilmState();
-      onBack();
     } catch (e) {
       console.log(e);
       if (consumed && selectedFilmType) {
