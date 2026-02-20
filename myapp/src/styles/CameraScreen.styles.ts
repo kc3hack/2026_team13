@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
   container: {
@@ -9,7 +9,7 @@ export const styles = StyleSheet.create({
   /* ── Top bar (same as AlbumScreen) ── */
   topBar: {
     position: 'absolute',
-    top: 10,
+    top: Platform.OS === 'android' ? 20 : 10,
     right: 0,
     left: '42%',
     zIndex: 20,
@@ -226,7 +226,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingRight: 40,
+    paddingRight: 20,
   },
   previewContainer: {
     width: 240,

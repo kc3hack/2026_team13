@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, View, Alert, Text, TouchableOpacity, Platform } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, View, Alert, Text, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
 import { FilmInventory, FILM_META, FilmType, RewardFilmType } from '../types';
@@ -13,6 +13,7 @@ interface ImagePickerScreenProps {
 }
 
 export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, onGoCamera }) => {
+  const { width, height } = useWindowDimensions();
   const [image, setImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 });
@@ -26,6 +27,8 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
   const [selectedFilmType, setSelectedFilmType] = useState<RewardFilmType | null>(null);
   const [backgroundMode, setBackgroundMode] = useState<MenuBackgroundMode>('light');
   const isDarkBackground = backgroundMode === 'dark';
+  const previewSize = Math.max(140, Math.min(220, Math.round(Math.min(width, height) * 0.34)));
+  const topPadding = Platform.OS === 'android' ? 24 : 50;
 
   const resolveFilmIdByType = (films: FilmType[]): Record<RewardFilmType, number | null> => {
     const byEffect = new Map<string, number>();
@@ -174,8 +177,8 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
   };
 
   return (
-    <View style={[styles.container, isDarkBackground && styles.containerDark]}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
+    <View style={[styles.container, { paddingTop: topPadding }, isDarkBackground && styles.containerDark]}>
+      <TouchableOpacity style={[styles.backButton, { top: Math.max(10, topPadding - 14) }]} onPress={onBack}>
         <Text style={[styles.backButtonText, isDarkBackground && styles.textDarkPrimary]}>← Back</Text>
       </TouchableOpacity>
       
@@ -242,8 +245,8 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       {saving && <ActivityIndicator size="small" color="#007AFF" />}
       
       {image &&
-        <View style={styles.imageWrap}>
-          <Image source={{ uri: image }} style={styles.image} />
+        <View style={[styles.imageWrap, { width: previewSize, height: previewSize }]}> 
+          <Image source={{ uri: image }} style={[styles.image, { width: previewSize, height: previewSize }]} />
           <BlurView
             intensity={36}
             tint="light"

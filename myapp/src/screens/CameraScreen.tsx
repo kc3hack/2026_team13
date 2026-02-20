@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
@@ -27,6 +27,7 @@ interface CameraScreenProps {
 }
 
 export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, onBack, onGoDarkroom, onGoAlbum, onGoDarkroomScreen, onGoSettings }) => {
+  const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
@@ -45,6 +46,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
   const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
+
+  const topBarLeft = width * 0.42;
+  const previewHeight = Math.max(140, Math.min(260, Math.round(height * 0.38)));
+  const previewWidth = Math.round(previewHeight * (4 / 3));
+  const gripHeight = previewHeight;
+  const gripWidth = Math.max(64, Math.min(96, Math.round(previewHeight * 0.42)));
+  const shutterButtonSize = Math.max(44, Math.min(64, Math.round(previewHeight * 0.31)));
+  const shutterInnerSize = Math.round(shutterButtonSize * 0.78);
 
   const getFilmDisplayName = (type: RewardFilmType): string => type;
   
@@ -144,7 +153,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   return (
     <SafeAreaView style={styles.container} {...swipePanResponder.panHandlers}>
       {/* Top bar: film inventory + refresh + settings */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { left: topBarLeft }]}>
         {FILM_TYPES.map((type) => {
           const meta = FILM_META[type];
           return (
@@ -236,7 +245,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
         </View>
 
         <View style={styles.cameraRig}>
-          <View style={styles.previewContainer}>
+          <View style={[styles.previewContainer, { width: previewWidth, height: previewHeight }]}>
             <CameraView
               style={styles.camera}
               facing="back"
@@ -251,13 +260,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                 <View style={styles.recDot} />
               </>
             )}
-            <ShutterOverlay width={240} height={180} isOpen={canShoot} shutterTrigger={shutterTrigger} />
+            <ShutterOverlay width={previewWidth} height={previewHeight} isOpen={canShoot} shutterTrigger={shutterTrigger} />
           </View>
 
-          <View style={styles.grip}>
+          <View style={[styles.grip, { width: gripWidth, height: gripHeight }]}>
             <TouchableOpacity 
               style={[
                 styles.shutterButton,
+                { width: shutterButtonSize, height: shutterButtonSize, borderRadius: shutterButtonSize / 2 },
                 isShooting && { borderColor: '#ff4444' },
                 !canShoot && styles.shutterDisabled,
               ]}
@@ -266,6 +276,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
             >
               <View style={[
                 styles.shutterInner,
+                { width: shutterInnerSize, height: shutterInnerSize, borderRadius: shutterInnerSize / 2 },
                 isShooting && { backgroundColor: '#cc0000' },
                 !canShoot && styles.shutterInnerDisabled,
               ]} />

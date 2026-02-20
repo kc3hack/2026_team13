@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import {
@@ -15,7 +16,8 @@ import {
 } from '@expo-google-fonts/courier-prime';
 import { getUserSettings, saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
-import { UserSettings } from '../types';
+import { FILM_META, FILM_TYPES, RewardFilmType, UserSettings } from '../types';
+import { addFilm, getFilmInventory } from '../utils/sqlite';
 import { styles } from '../styles/SettingsScreen.styles';
 
 interface SettingsScreenProps {
@@ -32,6 +34,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debugFilmLoading, setDebugFilmLoading] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -78,12 +81,43 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
     onSave();
   };
 
+  const handleAddDebugFilm = async (type: RewardFilmType) => {
+    try {
+      setDebugFilmLoading(true);
+      const inventory = await addFilm(type);
+      const count = inventory[type];
+      Alert.alert('Debug', `${FILM_META[type].label} +1 (現在: ${count})`);
+    } catch (error) {
+      console.log('failed to add debug film', error);
+      Alert.alert('Error', 'Failed to add debug film.');
+    } finally {
+      setDebugFilmLoading(false);
+    }
+  };
+
+  const handleAddAllDebugFilms = async () => {
+    try {
+      setDebugFilmLoading(true);
+      for (const type of FILM_TYPES) {
+        await addFilm(type, 1);
+      }
+      const inventory = await getFilmInventory();
+      Alert.alert('Debug', `All films +1\nMONO:${inventory.mono} VIVID:${inventory.vivid} RETRO:${inventory.retro} DISP:${inventory.disposable} SOFT:${inventory.soft}`);
+    } catch (error) {
+      console.log('failed to add all debug films', error);
+      Alert.alert('Error', 'Failed to add debug films.');
+    } finally {
+      setDebugFilmLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <TouchableOpacity onPress={onCancel} style={styles.backTouchable}>
         <Text style={[styles.backText, boldFont]}>{'< ABORT'}</Text>
       </TouchableOpacity>
 
+      <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.mainLayout}>
         <View style={styles.leftPanel}>
           <View style={styles.gripDecor}>
@@ -96,6 +130,30 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
 
           <View style={styles.dashboard}>
             <Text style={[styles.systemText, regularFont]}>DEVIT // SETTINGS_CONFIG</Text>
+
+            <Text style={[styles.sectionTitle, boldFont]}>DEBUG FILM TOOLS</Text>
+            <View style={styles.debugCardLeft}>
+              <TouchableOpacity
+                style={[styles.saveBtn, styles.debugAllBtn, debugFilmLoading && styles.disabledBtn]}
+                onPress={handleAddAllDebugFilms}
+                disabled={debugFilmLoading}
+              >
+                <Text style={[styles.saveBtnText, boldFont]}>{debugFilmLoading ? 'ADDING...' : 'ADD ALL +1'}</Text>
+              </TouchableOpacity>
+
+              <View style={styles.debugButtonGrid}>
+                {FILM_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.debugFilmBtn, debugFilmLoading && styles.disabledBtn]}
+                    onPress={() => handleAddDebugFilm(type)}
+                    disabled={debugFilmLoading}
+                  >
+                    <Text style={[styles.debugFilmBtnText, boldFont]}>{FILM_META[type].label} +1</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
         </View>
 
@@ -152,6 +210,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
           </View>
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
