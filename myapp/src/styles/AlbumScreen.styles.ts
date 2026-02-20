@@ -334,6 +334,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
+    zIndex: 15,
   },
   menuBackdropDismiss: {
     flex: 1,
