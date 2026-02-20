@@ -1,5 +1,6 @@
 import { Platform, StyleSheet } from 'react-native';
-
+const GRID_COLUMNS = 3;
+const ITEM_MARGIN = 8;
 export const styles = StyleSheet.create({
   /* ── Root ── */
   container: {
@@ -157,6 +158,41 @@ export const styles = StyleSheet.create({
     fontSize: 13,
   },
 
+  /* ── Pagination controls ── */
+  paginationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  paginationButton: {
+    borderWidth: 1,
+    borderColor: '#444',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  paginationButtonDisabled: {
+    opacity: 0.3,
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontFamily: 'cinecaption226',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  paginationButtonTextDisabled: {
+    color: '#666',
+  },
+  paginationText: {
+    color: '#ccc',
+    fontFamily: 'Courier',
+    fontSize: 13,
+    minWidth: 50,
+    textAlign: 'center',
+  },
+
   /* ── Right panel (photo grid) ── */
   rightPanel: {
     flex: 0.58,
@@ -177,6 +213,7 @@ export const styles = StyleSheet.create({
   },
   photoWrap: {
     position: 'relative',
+    width: '100%',
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
@@ -285,10 +322,11 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    width: '100%',
   },
   detailImage: {
-    width: '100%',
-    height: '78%',
+    width: '80%',
+    height: '80%',
   },
   detailBlurOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -302,6 +340,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
+    zIndex: 15,
   },
   menuBackdropDismiss: {
     flex: 1,
@@ -355,4 +394,110 @@ export const styles = StyleSheet.create({
     fontFamily: 'cinecaption226',
     marginTop: 2,
   },
+  detailSingleWrap: {
+  flex: 1,
+  backgroundColor: '#000', // モーダル背景（必要に応じて変更）
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 16,
+},
+detailImageHeader: {
+  width: '100%',
+  paddingVertical: 8,
+  alignItems: 'center',
+},
+detailHeaderTitle: {
+  color: '#fff',
+  fontSize: 16,
+  fontWeight: '600',
+},
+detailHeaderDate: {
+  color: '#ccc',
+  fontSize: 12,
+  marginTop: 4,
+},
+detailFooter: {
+  width: '100%',
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  paddingVertical: 12,
+  paddingHorizontal: 16,
+},
+detailFooterButton: {
+  padding: 8,
+},
+detailFooterText: {
+  color: '#fff',
+  fontSize: 14,
+},
+
+  
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  gridItem: {
+    width: `${100 / GRID_COLUMNS}%`,
+    padding: ITEM_MARGIN / 2,
+  },
+  gridImage: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: '#eee',
+  },
+
+  /* ── Detail photo modal (fallback overlay) ── */
+  detailModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1,
+  },
+  detailModalDismiss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+  },  detailModalNavButton: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -70,
+    zIndex: 11,
+    width: 70,
+    height: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailModalNavButtonLeft: {
+    left: 16,
+  },
+  detailModalNavButtonRight: {
+    right: 16,
+  },
+  detailModalNavButtonText: {
+    color: '#fff',
+    fontSize: 60,
+    fontWeight: 'bold',
+  },
+  detailModalCloseButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    zIndex: 12,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailModalCloseButtonText: {
+    color: '#fff',
+    fontSize: 36,
+    fontWeight: 'bold',
+  },  
 });
