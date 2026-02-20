@@ -2,6 +2,7 @@ import { openDatabaseAsync, SQLiteDatabase } from 'expo-sqlite';
 import { FilmInventory, FilmType, PhotoRecord, RewardFilmType } from '../types';
 
 export type Photo = PhotoRecord;
+export type PhotoStatus = 'undeveloped' | 'developing' | 'developed';
 export interface PhotoWithFilmName extends PhotoRecord {
   film_name: string | null;
 }
@@ -84,6 +85,7 @@ const initializeDatabaseInternal = async (): Promise<void> => {
       uri TEXT NOT NULL,
       film_id INTEGER,
       status TEXT NOT NULL DEFAULT 'undeveloped',
+      developing_started_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (film_id) REFERENCES films (id)
     );`
@@ -99,6 +101,7 @@ const initializeDatabaseInternal = async (): Promise<void> => {
   const photoColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(photos);');
   const hasFilmId = photoColumns.some((column) => column.name === 'film_id');
   const hasStatus = photoColumns.some((column) => column.name === 'status');
+  const hasDevelopingStartedAt = photoColumns.some((column) => column.name === 'developing_started_at');
   const hasCreatedAt = photoColumns.some((column) => column.name === 'created_at');
 
   if (!hasFilmId) {
@@ -106,6 +109,9 @@ const initializeDatabaseInternal = async (): Promise<void> => {
   }
   if (!hasStatus) {
     await db.runAsync("ALTER TABLE photos ADD COLUMN status TEXT NOT NULL DEFAULT 'undeveloped';");
+  }
+  if (!hasDevelopingStartedAt) {
+    await db.runAsync('ALTER TABLE photos ADD COLUMN developing_started_at DATETIME;');
   }
   if (!hasCreatedAt) {
     try {
@@ -158,22 +164,23 @@ export const getAllFilms = async (): Promise<FilmType[]> => {
 export const addPhoto = async (
   uri: string,
   filmId: number,
-  status: 'undeveloped' | 'developed' = 'undeveloped',
+  status: PhotoStatus = 'undeveloped',
 ): Promise<number> => {
   const result = await withDatabaseRetry((db) => db.runAsync(
-    "INSERT INTO photos (uri, film_id, status, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'));",
+    "INSERT INTO photos (uri, film_id, status, created_at, developing_started_at) VALUES (?, ?, ?, datetime('now', 'localtime'), NULL);",
     [uri, filmId, status],
   ));
   return result.lastInsertRowId;
 };
 
-export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Promise<PhotoWithFilmName[]> => {
+export const getPhotosByStatus = async (status: PhotoStatus): Promise<PhotoWithFilmName[]> => {
   return withDatabaseRetry((db) => db.getAllAsync<PhotoWithFilmName>(
     `SELECT
       p.id,
       p.uri,
       COALESCE(p.film_id, 11) AS film_id,
       p.status,
+      p.developing_started_at,
       COALESCE(p.created_at, datetime('now', 'localtime')) AS created_at,
       f.name AS film_name
     FROM photos p
@@ -184,8 +191,121 @@ export const getPhotosByStatus = async (status: 'undeveloped' | 'developed'): Pr
   ));
 };
 
-export const updatePhotoStatus = async (id: number, status: 'undeveloped' | 'developed'): Promise<void> => {
-  await withDatabaseRetry((db) => db.runAsync('UPDATE photos SET status = ? WHERE id = ?;', [status, id]).then(() => undefined));
+export const updatePhotoStatus = async (id: number, status: PhotoStatus): Promise<void> => {
+  await withDatabaseRetry((db) => db.runAsync(
+    'UPDATE photos SET status = ?, developing_started_at = CASE WHEN ? = \'developing\' THEN datetime(\'now\', \'localtime\') ELSE NULL END WHERE id = ?;',
+    [status, status, id],
+  ).then(() => undefined));
+};
+
+const getIdsWithDevelopingCapacity = async (ids: number[], capacity: number): Promise<number[]> => {
+  if (capacity <= 0 || ids.length === 0) {
+    return [];
+  }
+
+  const orderedUniqueIds = ids.filter((id, index) => ids.indexOf(id) === index);
+  return orderedUniqueIds.slice(0, capacity);
+};
+
+const buildInPlaceholders = (count: number): string => new Array(count).fill('?').join(', ');
+
+export const countDevelopingPhotos = async (): Promise<number> => {
+  const row = await withDatabaseRetry((db) => db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM photos WHERE status = 'developing';",
+  ));
+  return row?.count ?? 0;
+};
+
+export const getUndevelopedPhotosOldest = async (limit: number): Promise<PhotoWithFilmName[]> => {
+  return withDatabaseRetry((db) => db.getAllAsync<PhotoWithFilmName>(
+    `SELECT
+      p.id,
+      p.uri,
+      COALESCE(p.film_id, 11) AS film_id,
+      p.status,
+      p.developing_started_at,
+      COALESCE(p.created_at, datetime('now', 'localtime')) AS created_at,
+      f.name AS film_name
+    FROM photos p
+    LEFT JOIN films f ON p.film_id = f.id
+    WHERE p.status = 'undeveloped'
+    ORDER BY datetime(p.created_at) ASC, p.id ASC
+    LIMIT ?;`,
+    [Math.max(0, limit)],
+  ));
+};
+
+export const startDeveloping = async (ids: number[]): Promise<number[]> => {
+  const currentDevelopingCount = await countDevelopingPhotos();
+  const capacity = Math.max(0, 5 - currentDevelopingCount);
+  const startIds = await getIdsWithDevelopingCapacity(ids, capacity);
+
+  if (startIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = buildInPlaceholders(startIds.length);
+  await withDatabaseRetry((db) => db.runAsync(
+    `UPDATE photos
+      SET status = 'developing',
+          developing_started_at = datetime('now', 'localtime')
+      WHERE id IN (${placeholders})
+      AND status = 'undeveloped';`,
+    startIds,
+  ).then(() => undefined));
+
+  return startIds;
+};
+
+export const startDevelopingSession = async (ids: number[]): Promise<number[]> => {
+  return startDeveloping(ids);
+};
+
+export const getDevelopingPhotos = async (): Promise<PhotoWithFilmName[]> => {
+  return withDatabaseRetry((db) => db.getAllAsync<PhotoWithFilmName>(
+    `SELECT
+      p.id,
+      p.uri,
+      COALESCE(p.film_id, 11) AS film_id,
+      p.status,
+      p.developing_started_at,
+      COALESCE(p.created_at, datetime('now', 'localtime')) AS created_at,
+      f.name AS film_name
+    FROM photos p
+    LEFT JOIN films f ON p.film_id = f.id
+    WHERE p.status = 'developing'
+    ORDER BY datetime(COALESCE(p.developing_started_at, p.created_at)) ASC, p.id ASC;`,
+  ));
+};
+
+export const completeDevelopingSession = async (ids: number[]): Promise<void> => {
+  if (ids.length === 0) {
+    return;
+  }
+
+  const placeholders = buildInPlaceholders(ids.length);
+  await withDatabaseRetry((db) => db.runAsync(
+    `UPDATE photos
+      SET status = 'developed', developing_started_at = NULL
+      WHERE id IN (${placeholders})
+      AND status = 'developing';`,
+    ids,
+  ).then(() => undefined));
+};
+
+export const failDevelopingSession = async (ids: number[]): Promise<void> => {
+  if (ids.length === 0) {
+    return;
+  }
+
+  const placeholders = buildInPlaceholders(ids.length);
+  await withDatabaseRetry((db) => db.runAsync(
+    `UPDATE photos
+      SET status = 'undeveloped', developing_started_at = NULL
+      WHERE id IN (${placeholders})
+      AND status = 'developing';`,
+    ids,
+  ).then(() => undefined));
 };
 
 export const updatePhotoUri = async (id: number, uri: string): Promise<void> => {
