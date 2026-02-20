@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
+import * as ImageManipulator from 'expo-image-manipulator'; // 追加
 import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES, RewardFilmType } from '../types';
@@ -103,6 +104,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
       const photoData = await cameraRef.current.takePictureAsync();
       
       if (photoData && photoData.uri) {
+        // ── 3:2 クロップ ──────────────────────────────────────
+        const { width, height } = photoData;
+        const targetHeight = Math.floor(width * (2 / 3));
+        const originY = Math.floor((height - targetHeight) / 2);
+        const cropped = await ImageManipulator.manipulateAsync(
+          photoData.uri,
+          [{ crop: { originX: 0, originY, width, height: targetHeight } }],
+          { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        const finalUri = cropped.uri;
+        // ──────────────────────────────────────────────────────
+
         const consumed = await consumeFilm(selectedFilm);
         if (!consumed) {
            Alert.alert('エラー', 'フィルムが不足しています');
@@ -114,7 +127,12 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
         const inv = await getFilmInventory();
         setFilmInventory(inv);
 
-        await addPhoto(photoData.uri, activeFilmId, 'undeveloped');
+        const photoId = await addPhoto(finalUri, activeFilmId, 'undeveloped');
+        
+        Alert.alert('撮影完了', '今すぐ暗室（現像）に行きますか？', [
+          { text: 'まだ撮る', style: 'cancel' },
+          { text: '暗室へ', onPress: () => onGoDarkroom({ id: photoId, uri: finalUri, filmId: activeFilmId }) }
+        ]);
       }
     } catch (error) {
       console.log("撮影エラー:", error);
@@ -132,7 +150,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
           const meta = FILM_META[type];
           return (
             <View key={type} style={styles.filmBadge}>
-              <Image source={meta.image} style={styles.filmBadgeImage} />
+              <Text style={styles.filmBadgeEmoji}>{meta.emoji}</Text>
               <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
             </View>
           );
@@ -175,7 +193,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                         Haptics.selectionAsync();
                       }}
                     >
-                      <Image source={meta.image} style={styles.filmSelectImage} />
+                      <Text style={styles.filmSelectEmoji}>{meta.emoji}</Text>
                       <Text style={[styles.filmSelectLabel, isSelected && styles.filmSelectLabelActive]}>
                         {meta.label}
                       </Text>
@@ -258,4 +276,3 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
     </SafeAreaView>
   );
 }
-
