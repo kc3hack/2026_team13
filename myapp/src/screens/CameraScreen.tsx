@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
@@ -132,7 +132,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
           const meta = FILM_META[type];
           return (
             <View key={type} style={styles.filmBadge}>
-              <Text style={styles.filmBadgeEmoji}>{meta.emoji}</Text>
+              <Image source={meta.image} style={styles.filmBadgeImage} />
               <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
             </View>
           );
@@ -175,7 +175,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                         Haptics.selectionAsync();
                       }}
                     >
-                      <Text style={styles.filmSelectEmoji}>{meta.emoji}</Text>
+                      <Image source={meta.image} style={styles.filmSelectImage} />
                       <Text style={[styles.filmSelectLabel, isSelected && styles.filmSelectLabelActive]}>
                         {meta.label}
                       </Text>

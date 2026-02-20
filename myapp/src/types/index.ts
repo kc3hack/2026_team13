@@ -107,10 +107,18 @@ export type RewardFilmType = 'mono' | 'vivid' | 'retro';
 
 export const FILM_TYPES: RewardFilmType[] = ['mono', 'vivid', 'retro'];
 
-export const FILM_META: Record<RewardFilmType, { label: string; emoji: string; description: string }> = {
-  mono:  { label: 'Mono',  emoji: '🎞️', description: 'モノクロームの静かなトーン' },
-  vivid: { label: 'Vivid', emoji: '🌈', description: '鮮やかで力強い色彩' },
-  retro: { label: 'Retro', emoji: '📷', description: 'ノスタルジックな褪せた風合い' },
+import { ImageSourcePropType } from 'react-native';
+
+export const FILM_IMAGES: Record<RewardFilmType, ImageSourcePropType> = {
+  mono:  require('../../assets/images/KC3_film01_mono.png'),
+  vivid: require('../../assets/images/KC3_film02_vivid.png'),
+  retro: require('../../assets/images/KC3_film03_retro.png'),
+};
+
+export const FILM_META: Record<RewardFilmType, { label: string; emoji: string; image: ImageSourcePropType; description: string }> = {
+  mono:  { label: '01 Mono',  emoji: '🎞️', image: FILM_IMAGES.mono,  description: 'モノクロームの静かなトーン' },
+  vivid: { label: '02 Vivid', emoji: '🌈', image: FILM_IMAGES.vivid, description: '鮮やかで力強い色彩' },
+  retro: { label: '03 Retro', emoji: '📷', image: FILM_IMAGES.retro, description: 'ノスタルジックな褪せた風合い' },
 };
 
 /** Inventory of each film type the user owns */

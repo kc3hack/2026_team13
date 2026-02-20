@@ -592,7 +592,7 @@ const handleCheckCommits = async () => {
           const meta = FILM_META[type];
           return (
             <View key={type} style={styles.filmBadge}>
-              <Text style={styles.filmBadgeEmoji}>{meta.emoji}</Text>
+              <Image source={meta.image} style={styles.filmBadgeImage} />
               <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
             </View>
           );

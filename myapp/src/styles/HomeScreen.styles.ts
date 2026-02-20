@@ -25,6 +25,9 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   filmBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
@@ -35,6 +38,11 @@ export const styles = StyleSheet.create({
   filmBadgeDark: {
     backgroundColor: '#171717',
     borderColor: '#3A3A3A',
+  },
+  filmBadgeImage: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
   },
   filmBadgeText: {
     fontSize: 14,
