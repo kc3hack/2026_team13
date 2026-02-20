@@ -8,6 +8,11 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import { getUserSettings, saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
@@ -19,6 +24,10 @@ interface SettingsScreenProps {
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel }) => {
+  const [fontsLoaded] = useFonts({
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
   const [username, setUsername] = useState('');
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
@@ -35,6 +44,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
     };
     loadSettings();
   }, []);
+
+  if (!fontsLoaded) {
+    return <SafeAreaView style={styles.container} />;
+  }
+
+  const regularFont = { fontFamily: 'CourierPrime_400Regular' as const, fontWeight: 'normal' as const };
+  const boldFont = { fontFamily: 'CourierPrime_700Bold' as const, fontWeight: 'normal' as const };
 
   const handleSave = async () => {
     if (!username || !token) {
@@ -65,7 +81,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
   return (
     <SafeAreaView style={styles.container}>
       <TouchableOpacity onPress={onCancel} style={styles.backTouchable}>
-        <Text style={styles.backText}>{'< ABORT'}</Text>
+        <Text style={[styles.backText, boldFont]}>{'< ABORT'}</Text>
       </TouchableOpacity>
 
       <View style={styles.mainLayout}>
@@ -79,22 +95,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
           </View>
 
           <View style={styles.dashboard}>
-            <Text style={styles.systemText}>DEVIT // SETTINGS_CONFIG</Text>
-            <View style={styles.instruments}>
-              <View>
-              </View>
-            </View>
+            <Text style={[styles.systemText, regularFont]}>DEVIT // SETTINGS_CONFIG</Text>
           </View>
         </View>
 
         <View style={styles.rightPanel}>
-          <Text style={styles.sectionTitle}>AUTH PROFILE</Text>
+          <Text style={[styles.sectionTitle, boldFont]}>AUTH PROFILE</Text>
 
           <View style={styles.formCard}>
             <View style={styles.formRow}>
-              <Text style={styles.label}>USERNAME</Text>
+              <Text style={[styles.label, boldFont]}>USERNAME</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, regularFont]}
                 value={username}
                 onChangeText={setUsername}
                 placeholder="e.g. octocat"
@@ -104,9 +116,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
             </View>
 
             <View style={styles.formRow}>
-              <Text style={styles.label}>PAT TOKEN</Text>
+              <Text style={[styles.label, boldFont]}>PAT TOKEN</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, regularFont]}
                 value={token}
                 onChangeText={setToken}
                 placeholder="github_pat_..."
@@ -114,13 +126,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
                 secureTextEntry
                 autoCapitalize="none"
               />
-              <Text style={styles.helperText}>Contents: Read-only</Text>
+              <Text style={[styles.helperText, regularFont]}>Contents: Read-only</Text>
             </View>
 
             <View style={styles.formRowLast}>
-              <Text style={styles.label}>GIT EMAIL</Text>
+              <Text style={[styles.label, boldFont]}>GIT EMAIL</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, regularFont]}
                 value={gitEmail}
                 onChangeText={setGitEmail}
                 placeholder="email@example.com"
@@ -135,7 +147,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
               onPress={handleSave}
               disabled={loading}
             >
-              <Text style={styles.saveBtnText}>{loading ? 'VERIFYING...' : 'SAVE'}</Text>
+              <Text style={[styles.saveBtnText, boldFont]}>{loading ? 'VERIFYING...' : 'SAVE'}</Text>
             </TouchableOpacity>
           </View>
         </View>
