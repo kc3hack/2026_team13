@@ -106,7 +106,9 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo })
                 ? 'retro'
                 : targetPhoto.filmId === 4 || targetPhoto.filmId === 14
                   ? 'disposable'
-                  : 'mono');
+                  : targetPhoto.filmId === 5 || targetPhoto.filmId === 15
+                    ? 'soft'
+                    : 'mono');
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelProcessingRef.current,
         });

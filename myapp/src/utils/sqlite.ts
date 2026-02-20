@@ -70,7 +70,9 @@ const ensureFilmsSeeded = async (db: SQLiteDatabase): Promise<void> => {
     `INSERT OR IGNORE INTO films (id, name, description, effect_type) VALUES
       (11, 'Mono', 'モノクロームの静かなトーン', 'mono'),
       (12, 'Vivid', '鮮やかで力強い色彩', 'vivid'),
-      (13, 'Retro', 'ノスタルジックな褪せた風合い', 'retro');`
+      (13, 'Retro', 'ノスタルジックな褪せた風合い', 'retro'),
+      (14, 'Disposable', '使い捨てカメラ風のラフな質感', 'disposable'),
+      (15, 'Soft', 'やわらかい光と落ち着いたトーン', 'soft');`
   );
 };
 
@@ -126,9 +128,9 @@ const initializeDatabaseInternal = async (): Promise<void> => {
 
   await ensureFilmsSeeded(db);
 
-  // 3種のフィルム行が存在しなければ初期挿入
+  // フィルム行が存在しなければ初期挿入
   await db.runAsync(
-    `INSERT OR IGNORE INTO film_inventory (type, count) VALUES ('mono', 0), ('vivid', 0), ('retro', 0);`
+    `INSERT OR IGNORE INTO film_inventory (type, count) VALUES ('mono', 0), ('vivid', 0), ('retro', 0), ('disposable', 0), ('soft', 0);`
   );
 };
 
@@ -319,7 +321,7 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
   ));
 
   const effect = row?.effect_type?.toLowerCase();
-  if (effect === 'mono' || effect === 'vivid' || effect === 'retro') {
+  if (effect === 'mono' || effect === 'vivid' || effect === 'retro' || effect === 'disposable' || effect === 'soft') {
     return effect;
   }
 
@@ -333,6 +335,12 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
   if (filmName.includes('retro') || filmName.includes('vintage')) {
     return 'retro';
   }
+  if (filmName.includes('disposable') || filmName.includes('使い捨て')) {
+    return 'disposable';
+  }
+  if (filmName.includes('soft') || filmName.includes('dream') || filmName.includes('ソフト')) {
+    return 'soft';
+  }
 
   if (filmId === 1 || filmId === 11) {
     return 'mono';
@@ -342,6 +350,12 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
   }
   if (filmId === 3 || filmId === 13) {
     return 'retro';
+  }
+  if (filmId === 4 || filmId === 14) {
+    return 'disposable';
+  }
+  if (filmId === 5 || filmId === 15) {
+    return 'soft';
   }
 
   return 'mono';
@@ -366,7 +380,7 @@ export const getFilmInventory = async (): Promise<FilmInventory> => {
   const rows = await withDatabaseRetry((db) => db.getAllAsync<{ type: string; count: number }>(
     'SELECT type, count FROM film_inventory;'
   ));
-  const inventory: FilmInventory = { mono: 0, vivid: 0, retro: 0 };
+  const inventory: FilmInventory = { mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 };
   for (const row of rows) {
     if (row.type in inventory) {
       inventory[row.type as RewardFilmType] = row.count;

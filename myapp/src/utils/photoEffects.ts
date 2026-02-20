@@ -15,36 +15,40 @@ const MAX_PROCESS_WIDTH = 1280;
 
 type SegmentKey = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
 
+const DIGITAL_GLYPH_WIDTH = 7;
+const DIGITAL_GLYPH_HEIGHT = 11;
+
 const buildDigitalGlyph = (segments: SegmentKey[]): string[] => {
-  const grid = Array.from({ length: 7 }, () => Array.from({ length: 5 }, () => '0'));
+  const grid = Array.from({ length: DIGITAL_GLYPH_HEIGHT }, () => Array.from({ length: DIGITAL_GLYPH_WIDTH }, () => '0'));
 
-  const fillHorizontal = (rowIndex: number) => {
-    for (let columnIndex = 1; columnIndex <= 3; columnIndex += 1) {
-      grid[rowIndex][columnIndex] = '1';
-    }
-  };
+  const fillRect = (left: number, top: number, right: number, bottom: number) => {
+    const clampedLeft = Math.max(0, left);
+    const clampedTop = Math.max(0, top);
+    const clampedRight = Math.min(DIGITAL_GLYPH_WIDTH - 1, right);
+    const clampedBottom = Math.min(DIGITAL_GLYPH_HEIGHT - 1, bottom);
 
-  const fillVertical = (columnIndex: number, fromRow: number, toRow: number) => {
-    for (let rowIndex = fromRow; rowIndex <= toRow; rowIndex += 1) {
-      grid[rowIndex][columnIndex] = '1';
+    for (let y = clampedTop; y <= clampedBottom; y += 1) {
+      for (let x = clampedLeft; x <= clampedRight; x += 1) {
+        grid[y][x] = '1';
+      }
     }
   };
 
   for (const segment of segments) {
     if (segment === 'a') {
-      fillHorizontal(0);
+      fillRect(2, 0, 4, 0);
     } else if (segment === 'b') {
-      fillVertical(4, 1, 2);
+      fillRect(6, 2, 6, 4);
     } else if (segment === 'c') {
-      fillVertical(4, 4, 5);
+      fillRect(6, 7, 6, 9);
     } else if (segment === 'd') {
-      fillHorizontal(6);
+      fillRect(2, 10, 4, 10);
     } else if (segment === 'e') {
-      fillVertical(0, 4, 5);
+      fillRect(0, 7, 0, 9);
     } else if (segment === 'f') {
-      fillVertical(0, 1, 2);
+      fillRect(0, 2, 0, 4);
     } else if (segment === 'g') {
-      fillHorizontal(3);
+      fillRect(2, 5, 4, 5);
     }
   }
 
@@ -62,7 +66,32 @@ const DIGIT_GLYPHS: Record<string, string[]> = {
   '7': buildDigitalGlyph(['a', 'b', 'c']),
   '8': buildDigitalGlyph(['a', 'b', 'c', 'd', 'e', 'f', 'g']),
   '9': buildDigitalGlyph(['a', 'b', 'c', 'd', 'f', 'g']),
-  '/': ['00001', '00010', '00010', '00100', '01000', '01000', '10000'],
+  "'": [
+    '0000000',
+    '0001100',
+    '0001100',
+    '0001000',
+    '0000000',
+    '0000000',
+    '0000000',
+    '0000000',
+    '0000000',
+    '0000000',
+    '0000000',
+  ],
+  '/': [
+    '0000000',
+    '0000001',
+    '0000011',
+    '0000110',
+    '0001100',
+    '0011000',
+    '0110000',
+    '1100000',
+    '1000000',
+    '0000000',
+    '0000000',
+  ],
 };
 
 const DATE_STAMP_CORE_COLOR = { red: 255, green: 176, blue: 76 };
@@ -71,11 +100,11 @@ const DATE_STAMP_GLOW_OUTER = { red: 150, green: 68, blue: 18 };
 const DATE_STAMP_SHADOW = { red: 8, green: 4, blue: 2 };
 
 const formatDateStamp = (date: Date): string => {
-  const year = date.getFullYear();
+  const shortYear = `${date.getFullYear() % 100}`.padStart(2, '0');
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
 
-  return `${year}/${month}/${day}`;
+  return `''${shortYear}${month}${day}`;
 };
 
 const drawPixel = (
@@ -134,32 +163,55 @@ const drawDateStamp = (
 ) => {
   const stampText = formatDateStamp(date);
   const scale = Math.max(2, Math.min(7, Math.floor(width / 260)));
-  const glyphWidth = 5;
-  const glyphHeight = 7;
-  const charSpacing = Math.max(2, Math.floor(scale * 1.35));
+  const glyphWidth = DIGITAL_GLYPH_WIDTH;
+  const glyphHeight = DIGITAL_GLYPH_HEIGHT;
+  const baseCharSpacing = Math.max(2, Math.floor(scale * 1.2));
+  const apostrophePairSpacing = 0;
+  const apostropheToYearSpacing = Math.max(1, Math.floor(scale * 0.2));
+  const dateGroupSpacing = baseCharSpacing + Math.max(3, Math.floor(scale * 1.9));
   const margin = Math.max(14, scale * 7);
-  const textWidth = stampText.length * glyphWidth * scale + (stampText.length - 1) * charSpacing;
+  const chars = Array.from(stampText);
+  const getInterCharSpacing = (currentChar: string, nextChar: string | undefined, index: number): number => {
+    if (!nextChar) {
+      return 0;
+    }
+
+    if (index === 0 && currentChar === '\'' && nextChar === '\'') {
+      return apostrophePairSpacing;
+    }
+
+    if (index === 1 && currentChar === '\'' && /\d/.test(nextChar)) {
+      return apostropheToYearSpacing;
+    }
+
+    if (index === 3 || index === 5) {
+      return dateGroupSpacing;
+    }
+
+    return baseCharSpacing;
+  };
+  const textWidth = chars.reduce((total, char, index) => {
+    const nextChar = chars[index + 1];
+    return total + glyphWidth * scale + getInterCharSpacing(char, nextChar, index);
+  }, 0);
   const textHeight = glyphHeight * scale;
   const startX = Math.max(0, width - margin - textWidth);
   const startY = Math.max(0, height - margin - textHeight);
-  const chars = Array.from(stampText);
-  const projectionSlope = Math.max(1, Math.floor(scale * 0.45));
-  const glowRadius = Math.max(2, Math.floor(scale * 1.05));
+  const glowRadius = Math.max(1, Math.floor(scale * 0.75));
   const outlineRadius = Math.max(1, Math.floor(scale * 0.45));
 
   let cursorX = startX;
 
   for (let charIndex = 0; charIndex < chars.length; charIndex += 1) {
     const char = chars[charIndex];
+    const nextChar = chars[charIndex + 1];
     const glyph = DIGIT_GLYPHS[char];
     if (!glyph) {
-      cursorX += glyphWidth * scale + charSpacing;
+      cursorX += glyphWidth * scale + getInterCharSpacing(char, nextChar, charIndex);
       continue;
     }
 
-    const offsetY = Math.floor(((chars.length - 1 - charIndex) * projectionSlope) / chars.length);
-    const wobbleY = ((charIndex + 1) * 37) % 3 === 0 ? 1 : 0;
-    const charBaseY = startY + offsetY + wobbleY;
+    const charBaseY = startY;
 
     for (let gy = 0; gy < glyph.length; gy += 1) {
       const row = glyph[gy];
@@ -184,9 +236,9 @@ const drawDateStamp = (
                 }
 
                 if (distance <= Math.max(1, Math.floor(glowRadius / 2))) {
-                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_INNER, 0.24);
+                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_INNER, 0.16);
                 } else {
-                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_OUTER, 0.12);
+                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_OUTER, 0.08);
                 }
               }
             }
@@ -202,16 +254,13 @@ const drawDateStamp = (
 
             blendPixel(data, width, height, currentX + 2, currentY + 2, DATE_STAMP_SHADOW, 0.42);
 
-            const densityDrop = (gx + gy + sx + sy + charIndex * 3) % 31 === 0;
-            if (!densityDrop) {
-              blendPixel(data, width, height, currentX, currentY, DATE_STAMP_CORE_COLOR, 0.92);
-            }
+            blendPixel(data, width, height, currentX, currentY, DATE_STAMP_CORE_COLOR, 0.92);
           }
         }
       }
     }
 
-    cursorX += glyphWidth * scale + charSpacing;
+    cursorX += glyphWidth * scale + getInterCharSpacing(char, nextChar, charIndex);
   }
 };
 
@@ -342,6 +391,122 @@ const applyRetroFilter = async (data: Uint8Array, shouldCancel?: () => boolean):
   return true;
 };
 
+const applyDisposableFilter = async (
+  data: Uint8Array,
+  width: number,
+  height: number,
+  shouldCancel?: () => boolean,
+): Promise<boolean> => {
+  const saturation = 0.84;
+  const contrast = 0.95;
+  const brightness = 1.02;
+  const vignetteStrength = 0.52;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
+  let processedPixels = 0;
+
+  for (let index = 0; index < data.length; index += 4) {
+    if (shouldCancel?.()) {
+      return false;
+    }
+
+    const pixelIndex = index / 4;
+    const x = pixelIndex % width;
+    const y = Math.floor(pixelIndex / width);
+
+    const red = data[index];
+    const green = data[index + 1];
+    const blue = data[index + 2];
+    const luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
+
+    let nextRed = luminance + (red - luminance) * saturation;
+    let nextGreen = luminance + (green - luminance) * saturation;
+    let nextBlue = luminance + (blue - luminance) * saturation;
+
+    const horizontalShift = ((x - centerX) / Math.max(1, width)) * 26;
+    nextRed += horizontalShift + 10;
+    nextGreen += 2;
+    nextBlue -= horizontalShift + 10;
+
+    const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+    const vignette = 1 - vignetteStrength * ((distance / Math.max(1, maxDistance)) ** 2);
+
+    nextRed = ((nextRed - 128) * contrast + 128) * brightness * vignette;
+    nextGreen = ((nextGreen - 128) * contrast + 128) * brightness * vignette;
+    nextBlue = ((nextBlue - 128) * contrast + 128) * brightness * vignette;
+
+    const grainCellX = Math.floor(x / 4);
+    const grainCellY = Math.floor(y / 4);
+    const grainSeed = (grainCellX * 13 + grainCellY * 17) % 29;
+    const grain = (grainSeed - 14) * 3.4;
+
+    data[index] = clamp(nextRed + grain);
+    data[index + 1] = clamp(nextGreen + grain * 0.85);
+    data[index + 2] = clamp(nextBlue + grain * 0.7);
+
+    processedPixels += 1;
+    if (processedPixels % YIELD_EVERY_PIXELS === 0) {
+      await yieldToMainThread();
+    }
+  }
+
+  return true;
+};
+
+const applySoftFilter = async (
+  data: Uint8Array,
+  width: number,
+  height: number,
+  shouldCancel?: () => boolean,
+): Promise<boolean> => {
+  const saturation = 0.78;
+  const contrast = 0.8;
+  const brightness = 1.13;
+  let processedPixels = 0;
+
+  for (let index = 0; index < data.length; index += 4) {
+    if (shouldCancel?.()) {
+      return false;
+    }
+
+    const pixelIndex = index / 4;
+    const x = pixelIndex % width;
+    const y = Math.floor(pixelIndex / width);
+    const red = data[index];
+    const green = data[index + 1];
+    const blue = data[index + 2];
+    const luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
+
+    const saturatedR = luminance + (red - luminance) * saturation;
+    const saturatedG = luminance + (green - luminance) * saturation;
+    const saturatedB = luminance + (blue - luminance) * saturation;
+
+    const warmLift = 12;
+    let nextRed = ((saturatedR - 128) * contrast + 128) * brightness + warmLift;
+    let nextGreen = ((saturatedG - 128) * contrast + 128) * brightness + 3;
+    let nextBlue = ((saturatedB - 128) * contrast + 128) * brightness - 2;
+
+    const hash = (x * 19 + y * 23) % 4;
+    if (hash <= 2) {
+      nextRed = (nextRed * 3 + nextGreen) / 4;
+      nextGreen = (nextGreen * 3 + nextBlue) / 4;
+      nextBlue = (nextBlue * 3 + nextGreen) / 4;
+    }
+
+    data[index] = clamp(nextRed);
+    data[index + 1] = clamp(nextGreen);
+    data[index + 2] = clamp(nextBlue);
+
+    processedPixels += 1;
+    if (processedPixels % YIELD_EVERY_PIXELS === 0) {
+      await yieldToMainThread();
+    }
+  }
+
+  return true;
+};
+
 export const applyFilmEffectToPhoto = async (
   uri: string,
   effectType: RewardFilmType | null,
@@ -349,7 +514,7 @@ export const applyFilmEffectToPhoto = async (
     shouldCancel?: () => boolean;
   },
 ): Promise<string> => {
-  const shouldApplyFilter = effectType === 'mono' || effectType === 'vivid' || effectType === 'retro';
+  const shouldApplyFilter = effectType === 'mono' || effectType === 'vivid' || effectType === 'retro' || effectType === 'disposable' || effectType === 'soft';
 
   try {
     const normalizeActions: ImageManipulator.Action[] = [{ resize: { width: MAX_PROCESS_WIDTH } }];
@@ -396,6 +561,10 @@ export const applyFilmEffectToPhoto = async (
         processed = await applyMonoFilter(pixelData, options?.shouldCancel);
       } else if (effectType === 'vivid') {
         processed = await applyVividFilter(pixelData, options?.shouldCancel);
+      } else if (effectType === 'soft') {
+        processed = await applySoftFilter(pixelData, decoded.width, decoded.height, options?.shouldCancel);
+      } else if (effectType === 'disposable') {
+        processed = await applyDisposableFilter(pixelData, decoded.width, decoded.height, options?.shouldCancel);
       } else {
         processed = await applyRetroFilter(pixelData, options?.shouldCancel);
       }

@@ -52,7 +52,7 @@ const pickRandomFilm = (): RewardFilmType => {
 
 export const useGithubCommits = () => {
   const [loading, setLoading] = useState(false);
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 });
   const [lastCheckTime, setLastCheckTime] = useState<string | null>(null);
 
   const refreshInventory = useCallback(async () => {
