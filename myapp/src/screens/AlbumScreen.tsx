@@ -76,6 +76,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 });
+  const [currentPage, setCurrentPage] = useState(0);
 
   const { checkForCommits } = useGithubCommits();
 
@@ -183,6 +184,23 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     () => sortedPhotos.filter((photo) => selectedPhotoIds.includes(photo.id)),
     [sortedPhotos, selectedPhotoIds],
   );
+
+  const ITEMS_PER_PAGE = 6;
+  const totalPages = useMemo(() => {
+    return Math.ceil(sortedPhotos.length / ITEMS_PER_PAGE);
+  }, [sortedPhotos.length]);
+
+  const displayStartIndex = useMemo(() => {
+    return currentPage * ITEMS_PER_PAGE;
+  }, [currentPage]);
+
+  const handlePreviousPage = useCallback(() => {
+    setCurrentPage((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  const handleNextPage = useCallback(() => {
+    setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1));
+  }, [totalPages]);
 
   const load = useCallback(async (status: PhotoTab) => {
     const list = await getPhotosByStatus(status);
@@ -379,6 +397,9 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     return date.toLocaleString('ja-JP');
   }, [menuTargetPhoto]);
 
+  // テスト用: ネイティブ Modal が原因か切り分けるためのフォールバックオーバーレイ
+  const useFallbackModal = true;
+
   const handleDelete = (photo: PhotoWithFilmName) => {
     Alert.alert('削除', 'この写真を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
@@ -535,13 +556,18 @@ const handleCheckCommits = async () => {
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() => {
-        if (isSelectionMode) {
+        if (isSelectionMode) { //選択モード中、単押しで選択追加/解除
           togglePhotoSelection(item.id);
           return;
         }
-        setSelectedPhoto(item);
         setSelectedPhotoIndex(index);
-        applyDetailZoomScale(DETAIL_ZOOM_MIN);
+        
+        setTimeout(() => {
+    setSelectedPhoto(item);
+    applyDetailZoomScale(DETAIL_ZOOM_MIN);
+  }, 50);
+
+        console.log('Photo pressed', item.id, index);
       }}
       onLongPress={() => {
         if (isSelectionMode) {
@@ -629,6 +655,7 @@ const handleCheckCommits = async () => {
                     setSelectedTab('developed');
                     setIsSelectionMode(false);
                     setSelectedPhotoIds([]);
+                    setCurrentPage(0);
                   }}
                   style={[styles.dashboardBtn, selectedTab === 'developed' && styles.dashboardBtnActive]}
                 >
@@ -639,6 +666,7 @@ const handleCheckCommits = async () => {
                     setSelectedTab('undeveloped');
                     setIsSelectionMode(false);
                     setSelectedPhotoIds([]);
+                    setCurrentPage(0);
                   }}
                   style={[styles.dashboardBtn, selectedTab === 'undeveloped' && styles.dashboardBtnActive]}
                 >
@@ -690,73 +718,153 @@ const handleCheckCommits = async () => {
                   </View>
                 </>
               )}
+
+              {sortedPhotos.length > ITEMS_PER_PAGE && (
+                <>
+                  <Text style={styles.label}>[ PAGINATION ]</Text>
+                  <View style={styles.paginationContainer}>
+                    <TouchableOpacity
+                      onPress={handlePreviousPage}
+                      disabled={currentPage === 0}
+                      style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
+                    >
+                      <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.paginationText}>
+                      {currentPage + 1} / {totalPages}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleNextPage}
+                      disabled={currentPage === totalPages - 1}
+                      style={[styles.paginationButton, currentPage === totalPages - 1 && styles.paginationButtonDisabled]}
+                    >
+                      <Text style={[styles.paginationButtonText, currentPage === totalPages - 1 && styles.paginationButtonTextDisabled]}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </View>
           </View>
         </View>
 
-        {/* Right side: photo grid */}
+        {/* Right side: photo grid (固定6枚、スクロール無し) */}
         <View style={styles.rightPanel}>
-          {sortedPhotos.length === 0 ? (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>
-                {selectedTab === 'developed' ? '現像済みの写真はありません' : '現像待ちの写真はありません'}
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={sortedPhotos}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderItem}
-              numColumns={GRID_COLUMNS}
-              columnWrapperStyle={styles.listRow}
-              contentContainerStyle={styles.list}
-              showsVerticalScrollIndicator={false}
-            />
-          )}
+          <View style={styles.gridContainer}>
+            {Array.from({ length: 6 }).map((_, idx) => {
+              const item = sortedPhotos[displayStartIndex + idx];
+              return (
+                <View key={idx} style={styles.gridItem}>
+                  {item ? (
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      onPress={() => {
+                        if (isSelectionMode) {
+                          togglePhotoSelection(item.id);
+                          return;
+                        }
+                        //openActionMenu(item);
+                        setSelectedPhotoIndex(displayStartIndex + idx);
+                        setSelectedPhoto(item);
+                      }}
+                      onLongPress={() => {
+                        if (isSelectionMode) {
+                          togglePhotoSelection(item.id);
+                          return;
+                        }
+                        setIsSelectionMode(true);
+                        setSelectedPhotoIds([item.id]);
+                      }}
+                    >
+                      <View style={styles.photoWrap}>
+                        <Image
+                          source={{ uri: item.uri }}
+                          style={styles.gridImage}
+                          resizeMode="cover"
+                          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
+                        />
+                        {selectedTab === 'undeveloped' && (
+                          <BlurView
+                            intensity={Platform.OS === 'ios' ? 22 : 0}
+                            tint="default"
+                            style={styles.photoBlurOverlay}
+                          />
+                        )}
+                        {isSelectionMode && (
+                          <View style={[styles.selectionBadge, selectedPhotoIds.includes(item.id) && styles.selectionBadgeActive]}>
+                            <Text style={styles.selectionBadgeText}>{selectedPhotoIds.includes(item.id) ? '✓' : ''}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.photoWrap}>
+                      <View style={styles.gridImage} />
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         </View>
       </View>
 
-      {/* Detail modal */}
-      <Modal
-        visible={selectedPhoto !== null}
-        animationType="fade"
-        onRequestClose={closeSelectedPhoto}
-      >
-        <SafeAreaView style={styles.detailContainer}>
-          <View style={styles.detailHeader}>
-            <TouchableOpacity style={styles.detailHeaderButton} onPress={closeSelectedPhoto}>
-              <Text style={styles.detailHeaderText}>✕</Text>
-            </TouchableOpacity>
+      {/* Detail modal (fallback overlay) */}
+      {selectedPhoto && (
+        <Pressable
+          style={styles.detailModalBackdrop}
+          pointerEvents="box-none"
+        >
+          <Pressable
+            style={styles.detailModalDismiss}
+            onPress={closeSelectedPhoto}
+          />
+          <Pressable
+            style={styles.detailImageWrap}
+            onLayout={handleDetailImageWrapLayout}
+            onTouchStart={handleDetailTouchStart}
+            onTouchMove={handleDetailTouchMove}
+            onTouchEnd={handleDetailTouchEnd}
+            onTouchCancel={handleDetailTouchEnd}
+            onLongPress={() => openActionMenu(selectedPhoto)}
+          >
+            <Image
+              source={{ uri: selectedPhoto.uri }}
+              style={[styles.detailImage, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
+              resizeMode="contain"
+              blurRadius={selectedPhoto.status === 'undeveloped' ? 22 : 0}
+            />
+            {selectedPhoto.status === 'undeveloped' && (
+              <BlurView
+                intensity={Platform.OS === 'ios' ? 22 : 0}
+                tint="default"
+                style={[styles.detailBlurOverlay, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
+              />
+            )}
+          </Pressable>
+          {selectedPhotoIndex > 0 && (
             <TouchableOpacity
-              style={styles.detailHeaderButton}
-              onPress={() => selectedPhoto && openActionMenu(selectedPhoto)}
+              style={[styles.detailModalNavButton, styles.detailModalNavButtonLeft]}
+              onPress={() => {
+                const prevIndex = selectedPhotoIndex - 1;
+                setSelectedPhotoIndex(prevIndex);
+                setSelectedPhoto(sortedPhotos[prevIndex]);
+                applyDetailZoomScale(DETAIL_ZOOM_MIN);
+                setDetailTranslateX(0);
+                setDetailTranslateY(0);
+                setIsPinchingDetail(false);
+                setIsPanningDetail(false);
+                detailPanRef.current = null;
+                detailPinchRef.current = null;
+              }}
             >
-              <Text style={styles.detailHeaderText}>•••</Text>
+              <Text style={styles.detailModalNavButtonText}>‹</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.detailZoomControls}>
-            <TouchableOpacity style={styles.detailZoomButton} onPress={resetDetailZoom}>
-              <Text style={styles.detailZoomButtonText}>元の位置に戻す</Text>
-            </TouchableOpacity>
-          </View>
-
-          {selectedPhoto && (
-            <FlatList
-              data={sortedPhotos}
-              horizontal
-              scrollEnabled={!isPinchingDetail && !isPanningDetail && detailZoomScale <= DETAIL_ZOOM_MIN + 0.01}
-              decelerationRate="fast"
-              snapToInterval={detailScrollInterval}
-              snapToAlignment="start"
-              disableIntervalMomentum
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={p => p.id.toString()}
-              ItemSeparatorComponent={() => <View style={{ width: detailPhotoGap }} />}
-              contentOffset={{ x: detailScrollInterval * selectedPhotoIndex, y: 0 }}
-              onMomentumScrollEnd={(event) => {
-                const nextIndex = Math.round(event.nativeEvent.contentOffset.x / detailScrollInterval);
-                if (nextIndex < 0 || nextIndex >= sortedPhotos.length) return;
+          )}
+          {selectedPhotoIndex < sortedPhotos.length - 1 && (
+            <TouchableOpacity
+              style={[styles.detailModalNavButton, styles.detailModalNavButtonRight]}
+              onPress={() => {
+                const nextIndex = selectedPhotoIndex + 1;
                 setSelectedPhotoIndex(nextIndex);
                 setSelectedPhoto(sortedPhotos[nextIndex]);
                 applyDetailZoomScale(DETAIL_ZOOM_MIN);
@@ -767,79 +875,91 @@ const handleCheckCommits = async () => {
                 detailPanRef.current = null;
                 detailPinchRef.current = null;
               }}
-              renderItem={({ item, index }) => {
-                const scale = index === selectedPhotoIndex ? detailZoomScale : DETAIL_ZOOM_MIN;
-                const translateX = index === selectedPhotoIndex ? detailTranslateX : 0;
-                const translateY = index === selectedPhotoIndex ? detailTranslateY : 0;
-                const touchHandlers = index === selectedPhotoIndex
-                  ? {
-                    onTouchStart: handleDetailTouchStart,
-                    onTouchMove: handleDetailTouchMove,
-                    onTouchEnd: handleDetailTouchEnd,
-                    onTouchCancel: handleDetailTouchEnd,
-                  }
-                  : {};
-
-                return (
-                  <View
-                    style={[styles.detailImageWrap, { width: screenWidth }]}
-                    onLayout={index === selectedPhotoIndex ? handleDetailImageWrapLayout : undefined}
-                    {...touchHandlers}
-                  >
-                    <Image
-                      source={{ uri: item.uri }}
-                      style={[styles.detailImage, { transform: [{ translateX }, { translateY }, { scale }] }]}
-                      resizeMode="contain"
-                      blurRadius={item.status === 'undeveloped' ? 22 : 0}
-                    />
-                    {item.status === 'undeveloped' && (
-                      <BlurView
-                        intensity={Platform.OS === 'ios' ? 22 : 0}
-                        tint="default"
-                        style={[styles.detailBlurOverlay, { transform: [{ translateX }, { translateY }, { scale }] }]}
-                      />
-                    )}
-                  </View>
-                );
-              }}
-            />
-          )}
-        </SafeAreaView>
-      </Modal>
-
-      {/* Action menu modal */}
-      <Modal visible={menuTargetPhoto !== null} transparent animationType="fade" onRequestClose={closeActionMenu}>
-        <View style={styles.menuBackdrop}>
-          <Pressable style={styles.menuBackdropDismiss} onPress={closeActionMenu} />
-          <View style={styles.menuSheet}>
-            <Text style={styles.menuTitle}>写真アクション</Text>
-
-            {menuTargetPhoto?.status === 'developed' && (
-              <TouchableOpacity
-                style={styles.menuActionButton}
-                onPress={() => menuTargetPhoto && void handleSaveToDevice(menuTargetPhoto)}
-              >
-                <Text style={styles.menuActionText}>端末に保存</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={[styles.menuActionButton, styles.menuDangerButton]}
-              onPress={() => menuTargetPhoto && handleDelete(menuTargetPhoto)}
             >
-              <Text style={styles.menuDangerText}>削除</Text>
+              <Text style={styles.detailModalNavButtonText}>›</Text>
             </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.detailModalCloseButton}
+            onPress={closeSelectedPhoto}
+          >
+            <Text style={styles.detailModalCloseButtonText}>×</Text>
+          </TouchableOpacity>
+        </Pressable>
+      )}
 
-            <View style={styles.menuInfoWrap}>
-              <Text style={styles.menuInfoLabel}>撮影日時</Text>
-              <Text style={styles.menuInfoValue}>{formattedCreatedAt}</Text>
+      {/* Action menu modal (フォールバック切り替え) */}
+      {useFallbackModal ? (
+        menuTargetPhoto !== null && (
+          <Pressable 
+            style={styles.menuBackdrop} 
+            onPress={closeActionMenu}
+            pointerEvents="auto"
+          >
+            <Pressable style={styles.menuBackdropDismiss} onPress={closeActionMenu} />
+            <View style={styles.menuSheet}>
+              <Text style={styles.menuTitle}>写真アクション</Text>
 
-              <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
-              <Text style={styles.menuInfoValue}>{menuTargetPhoto?.film_name ?? '不明'}</Text>
+              {menuTargetPhoto?.status === 'developed' && (
+                <TouchableOpacity
+                  style={styles.menuActionButton}
+                  onPress={() => menuTargetPhoto && void handleSaveToDevice(menuTargetPhoto)}
+                >
+                  <Text style={styles.menuActionText}>端末に保存</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.menuActionButton, styles.menuDangerButton]}
+                onPress={() => menuTargetPhoto && handleDelete(menuTargetPhoto)}
+              >
+                <Text style={styles.menuDangerText}>削除</Text>
+              </TouchableOpacity>
+
+              <View style={styles.menuInfoWrap}>
+                <Text style={styles.menuInfoLabel}>撮影日時</Text>
+                <Text style={styles.menuInfoValue}>{formattedCreatedAt}</Text>
+
+                <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
+                <Text style={styles.menuInfoValue}>{menuTargetPhoto?.film_name ?? '不明'}</Text>
+              </View>
+            </View>
+          </Pressable>
+        )
+      ) : (
+        <Modal visible={menuTargetPhoto !== null} transparent animationType="fade" onRequestClose={closeActionMenu}>
+          <View style={styles.menuBackdrop}>
+            <Pressable style={styles.menuBackdropDismiss} onPress={closeActionMenu} />
+            <View style={styles.menuSheet}>
+              <Text style={styles.menuTitle}>写真アクション</Text>
+
+              {menuTargetPhoto?.status === 'developed' && (
+                <TouchableOpacity
+                  style={styles.menuActionButton}
+                  onPress={() => menuTargetPhoto && void handleSaveToDevice(menuTargetPhoto)}
+                >
+                  <Text style={styles.menuActionText}>端末に保存</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.menuActionButton, styles.menuDangerButton]}
+                onPress={() => menuTargetPhoto && handleDelete(menuTargetPhoto)}
+              >
+                <Text style={styles.menuDangerText}>削除</Text>
+              </TouchableOpacity>
+
+              <View style={styles.menuInfoWrap}>
+                <Text style={styles.menuInfoLabel}>撮影日時</Text>
+                <Text style={styles.menuInfoValue}>{formattedCreatedAt}</Text>
+
+                <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
+                <Text style={styles.menuInfoValue}>{menuTargetPhoto?.film_name ?? '不明'}</Text>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
