@@ -4,9 +4,12 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#050505',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingTop: 90,
+  },
+  mainContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 18,
   },
   glowLarge: {
     position: 'absolute',
@@ -28,8 +31,8 @@ export const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 36,
-    left: 20,
+    top: 20,
+    left: 8,
     padding: 10,
     zIndex: 30,
     elevation: 30,
@@ -44,36 +47,87 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 42,
   },
-  pendingTitle: {
-    color: '#E8D3D3',
-    fontSize: 16,
-    marginBottom: 12,
-    fontWeight: '700',
+  slotsWrap: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 42,
+    flex: 1,
   },
-  pendingPhoto: {
-    width: 220,
-    height: 220,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+  slotsScroll: {
+    width: '100%',
+    flexGrow: 0,
   },
-  pendingPhotoWrap: {
-    position: 'relative',
-    width: 220,
-    height: 220,
+  slotsScrollContent: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  slotCard: {
+    width: 200,
+    height: 300,
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  slotImageWrap: {
+    width: '100%',
+    height: 260,
     borderRadius: 12,
     overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: '#101010',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  pendingPhotoMosaic: {
+  slotImage: {
+    width: '100%',
+    height: '100%',
+  },
+  slotBlur: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
   },
-  pendingEmpty: {
-    color: '#C5B7B7',
+  slotStatus: {
+    marginTop: 10,
+    color: '#D6CACA',
     fontSize: 13,
+    fontWeight: '600',
+  },
+  emptySlot: {
+    width: '100%',
+    height: 260,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  emptySlotTitle: {
+    color: '#C5B7B7',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptySlotSub: {
+    marginTop: 4,
+    color: '#8E7E7E',
+    fontSize: 11,
+  },
+  pendingTitle: {
+    color: '#E8D3D3',
+    fontSize: 16,
+    marginBottom: 14,
+    fontWeight: '700',
   },
   timerWrap: {
     alignItems: 'center',
+    paddingBottom: 30,
+    width: '100%',
   },
   timerLabel: {
     color: '#8B0000',
@@ -83,7 +137,7 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
   timerText: {
-    color: '#FFFFFF',
+    color: '#D41414',
     fontSize: 64,
     fontWeight: '900',
     letterSpacing: 2,
@@ -93,10 +147,12 @@ export const styles = StyleSheet.create({
     textShadowRadius: 12,
   },
   processingText: {
-    marginTop: 10,
+    marginTop: 12,
     color: '#C5B7B7',
-    fontSize: 12,
-    letterSpacing: 1,
+    fontSize: 13,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
   loadingWrap: {
     flex: 1,
@@ -128,12 +184,6 @@ export const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: 12,
     fontWeight: '700',
-  },
-  modalImage: {
-    width: 240,
-    height: 240,
-    borderRadius: 12,
-    marginBottom: 20,
   },
   saveButton: {
     backgroundColor: '#8B0000',

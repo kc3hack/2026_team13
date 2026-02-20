@@ -1,203 +1,179 @@
 import { Platform, StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
+  /* ── Root ── */
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#050505',
   },
-  containerDark: {
-    backgroundColor: '#000000',
-  },
-  textDarkPrimary: {
-    color: '#F1F1F1',
-  },
-  textDarkSub: {
-    color: '#C7C7C7',
-  },
-  controlDark: {
-    backgroundColor: '#171717',
-    borderColor: '#3A3A3A',
-  },
-  header: {
-    width: '100%',
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    padding: 10,
-  },
-  backText: {
-    color: '#007AFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  selectionToggleButton: {
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  selectionToggleButtonText: {
-    fontSize: 12,
-    color: '#3A3A3A',
-    fontWeight: '600',
-  },
-  tabsWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
-    marginTop: 2,
-  },
-  tabsWrapDark: {
-    borderBottomColor: '#2E2E2E',
-  },
-  tabItem: {
-    width: '50%',
-    maxWidth: 180,
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  tabText: {
-    color: '#787878',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  tabTextActive: {
-    color: '#1E1E1E',
-    fontWeight: '700',
-  },
-  tabIndicator: {
-    marginTop: 8,
-    width: 76,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#1E1E1E',
-  },
-  tabIndicatorDark: {
-    backgroundColor: '#F1F1F1',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: 12,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E1E1E',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  selectionInfoText: {
-    fontSize: 12,
-    color: '#3A3A3A',
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  selectionActionBar: {
+
+  /* ── Top bar (film badges + refresh + settings) ── */
+  topBar: {
     position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 0,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'android' ? 48 : 36,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderTopWidth: 1,
-    borderTopColor: '#EFEFEF',
-    borderRadius: 14,
-  },
-  selectionActionBarDark: {
-    backgroundColor: 'rgba(18,18,18,0.96)',
-    borderTopColor: '#2E2E2E',
-  },
-  selectionActionRow: {
+    top: 10,
+    right: 0,
+    left: '42%',
+    zIndex: 20,
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingRight: 24,
     gap: 8,
   },
-  selectionActionButton: {
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  selectionActionButtonText: {
-    fontSize: 12,
-    color: '#3A3A3A',
-    fontWeight: '600',
-  },
-  selectionActionDangerButton: {
-    borderColor: '#E6C4C4',
-  },
-  selectionActionDangerText: {
-    color: '#D63A3A',
-  },
-  sortButton: {
-    alignSelf: 'center',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  sortButtonDisabled: {
-    opacity: 0.5,
-  },
-  sortButtonText: {
-    fontSize: 12,
-    color: '#3A3A3A',
-    fontWeight: '600',
-  },
-  list: {
-    marginTop: 16,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
-    width: '100%',
-  },
-  listView: {
-    width: '100%',
-    alignSelf: 'stretch',
-  },
-  listWithSelectionActions: {
-    paddingBottom: Platform.OS === 'android' ? 148 : 106,
-  },
-  listRow: {
-    width: '100%',
-    justifyContent: 'flex-start',
-    marginBottom: 12,
-  },
-  emptyWrap: {
-    flex: 1,
-    justifyContent: 'center',
+  filmBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  emptyText: {
-    color: '#666666',
+  filmBadgeEmoji: {
     fontSize: 14,
   },
+  filmBadgeCount: {
+    color: '#fff',
+    fontFamily: 'Courier',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  topBarButton: {
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  topBarButtonText: {
+    color: '#ccc',
+    fontSize: 18,
+    fontFamily: 'Courier',
+    fontWeight: 'bold',
+  },
+
+  /* ── Main two-column layout ── */
+  mainLayout: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+
+  /* ── Left panel (grip + dashboard) ── */
+  leftPanel: {
+    flex: 0.42,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  /* Navigation bar (left edge) */
+  grip: {
+    width: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginLeft: 4,
+  },
+  navSquare: {
+    width: 8,
+    height: 8,
+    borderWidth: 1,
+    borderColor: '#555',
+    backgroundColor: 'transparent',
+  },
+  navSquareActive: {
+    backgroundColor: '#888',
+    borderColor: '#888',
+  },
+  gripLine: {
+    width: 1,
+    height: 10,
+    backgroundColor: '#333',
+  },
+
+  /* Dashboard */
+  dashboard: {
+    flex: 1,
+    alignSelf: 'stretch',
+    paddingLeft: 24,
+    paddingTop: 80,
+    justifyContent: 'flex-start',
+  },
+  systemText: {
+    color: '#00ff00',
+    fontFamily: 'Courier',
+    fontSize: 14,
+    marginBottom: 20,
+    letterSpacing: 1,
+  },
+  instruments: {
+    gap: 12,
+  },
+  label: {
+    color: '#666',
+    fontFamily: 'Courier',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
+  dashboardBtn: {
+    borderWidth: 1,
+    borderColor: '#444',
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    borderRadius: 4,
+  },
+  dashboardBtnActive: {
+    borderColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  btnText: {
+    color: '#888',
+    fontFamily: 'cinecaption226',
+    fontSize: 13,
+  },
+  btnTextActive: {
+    color: '#fff',
+  },
+  dangerBtn: {
+    borderColor: '#ff4444',
+  },
+  dangerBtnText: {
+    color: '#ff4444',
+    fontFamily: 'cinecaption226',
+    fontSize: 13,
+  },
+
+  /* ── Right panel (photo grid) ── */
+  rightPanel: {
+    flex: 0.58,
+    paddingTop: 50,
+  },
+  list: {
+    paddingHorizontal: 12,
+    paddingBottom: 24,
+  },
+  listRow: {
+    justifyContent: 'flex-start',
+    marginBottom: 8,
+  },
+
+  /* Photo items */
   photoItem: {
-    marginRight: 0,
-    marginHorizontal: 0,
     marginBottom: 0,
   },
   photoWrap: {
     position: 'relative',
-    marginBottom: 4,
-    borderRadius: 8,
+    borderRadius: 4,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-  },
-  photoWrapDark: {
-    borderColor: '#000000',
+    backgroundColor: '#1a1a1a',
   },
   photo: {
     backgroundColor: 'transparent',
@@ -216,25 +192,44 @@ export const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#FFFFFF',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 3,
   },
   selectionBadgeActive: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#00ff00',
+    borderColor: '#00ff00',
   },
   selectionBadgeText: {
-    color: '#FFFFFF',
+    color: '#000',
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 14,
   },
+
+  /* Photo meta text */
   metaText: {
     fontSize: 10,
-    color: '#555555',
+    color: '#888',
+    fontFamily: 'cinecaption226',
     lineHeight: 14,
+    marginTop: 1,
   },
+
+  /* Empty state */
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#666',
+    fontFamily: 'cinecaption226',
+    fontSize: 14,
+  },
+
+  /* ── Detail modal ── */
   detailContainer: {
     flex: 1,
     backgroundColor: '#000000',
@@ -295,16 +290,18 @@ export const styles = StyleSheet.create({
     bottom: '11%',
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
+
+  /* ── Action menu modal ── */
   menuBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
   },
   menuBackdropDismiss: {
     flex: 1,
   },
   menuSheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1a1a1a',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingHorizontal: 20,
@@ -313,40 +310,43 @@ export const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1E1E1E',
+    color: '#fff',
+    fontFamily: 'cinecaption226',
     marginBottom: 8,
   },
   menuActionButton: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
+    borderBottomColor: '#333',
   },
   menuActionText: {
     fontSize: 15,
-    color: '#2B2B2B',
+    color: '#ccc',
+    fontFamily: 'cinecaption226',
   },
   menuDangerButton: {
     marginTop: 2,
   },
   menuDangerText: {
     fontSize: 15,
-    color: '#D63A3A',
-    fontWeight: '600',
+    color: '#ff4444',
+    fontFamily: 'cinecaption226',
   },
   menuInfoWrap: {
     marginTop: 14,
   },
   menuInfoLabel: {
     fontSize: 12,
-    color: '#888888',
+    color: '#666',
+    fontFamily: 'cinecaption226',
   },
   menuInfoTopMargin: {
     marginTop: 10,
   },
   menuInfoValue: {
     fontSize: 14,
-    color: '#1E1E1E',
+    color: '#ccc',
+    fontFamily: 'cinecaption226',
     marginTop: 2,
   },
 });

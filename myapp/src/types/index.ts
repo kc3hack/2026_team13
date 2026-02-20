@@ -95,8 +95,9 @@ export interface PhotoRecord {
   id: number;
   uri: string;
   film_id: number;
-  status: 'undeveloped' | 'developed';
+  status: 'undeveloped' | 'developing' | 'developed';
   created_at: string;
+  developing_started_at?: string | null;
 }
 
 // --- Commit reward film inventory types ---
