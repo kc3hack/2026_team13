@@ -655,6 +655,7 @@ const handleCheckCommits = async () => {
                     setSelectedTab('developed');
                     setIsSelectionMode(false);
                     setSelectedPhotoIds([]);
+                    setCurrentPage(0);
                   }}
                   style={[styles.dashboardBtn, selectedTab === 'developed' && styles.dashboardBtnActive]}
                 >
@@ -665,6 +666,7 @@ const handleCheckCommits = async () => {
                     setSelectedTab('undeveloped');
                     setIsSelectionMode(false);
                     setSelectedPhotoIds([]);
+                    setCurrentPage(0);
                   }}
                   style={[styles.dashboardBtn, selectedTab === 'undeveloped' && styles.dashboardBtnActive]}
                 >
