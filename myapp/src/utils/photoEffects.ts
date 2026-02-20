@@ -13,6 +13,208 @@ const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 const YIELD_EVERY_PIXELS = 16384;
 const MAX_PROCESS_WIDTH = 1280;
 
+type SegmentKey = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
+
+const buildDigitalGlyph = (segments: SegmentKey[]): string[] => {
+  const grid = Array.from({ length: 7 }, () => Array.from({ length: 5 }, () => '0'));
+
+  const fillHorizontal = (rowIndex: number) => {
+    for (let columnIndex = 1; columnIndex <= 3; columnIndex += 1) {
+      grid[rowIndex][columnIndex] = '1';
+    }
+  };
+
+  const fillVertical = (columnIndex: number, fromRow: number, toRow: number) => {
+    for (let rowIndex = fromRow; rowIndex <= toRow; rowIndex += 1) {
+      grid[rowIndex][columnIndex] = '1';
+    }
+  };
+
+  for (const segment of segments) {
+    if (segment === 'a') {
+      fillHorizontal(0);
+    } else if (segment === 'b') {
+      fillVertical(4, 1, 2);
+    } else if (segment === 'c') {
+      fillVertical(4, 4, 5);
+    } else if (segment === 'd') {
+      fillHorizontal(6);
+    } else if (segment === 'e') {
+      fillVertical(0, 4, 5);
+    } else if (segment === 'f') {
+      fillVertical(0, 1, 2);
+    } else if (segment === 'g') {
+      fillHorizontal(3);
+    }
+  }
+
+  return grid.map((row) => row.join(''));
+};
+
+const DIGIT_GLYPHS: Record<string, string[]> = {
+  '0': buildDigitalGlyph(['a', 'b', 'c', 'd', 'e', 'f']),
+  '1': buildDigitalGlyph(['b', 'c']),
+  '2': buildDigitalGlyph(['a', 'b', 'd', 'e', 'g']),
+  '3': buildDigitalGlyph(['a', 'b', 'c', 'd', 'g']),
+  '4': buildDigitalGlyph(['b', 'c', 'f', 'g']),
+  '5': buildDigitalGlyph(['a', 'c', 'd', 'f', 'g']),
+  '6': buildDigitalGlyph(['a', 'c', 'd', 'e', 'f', 'g']),
+  '7': buildDigitalGlyph(['a', 'b', 'c']),
+  '8': buildDigitalGlyph(['a', 'b', 'c', 'd', 'e', 'f', 'g']),
+  '9': buildDigitalGlyph(['a', 'b', 'c', 'd', 'f', 'g']),
+  '/': ['00001', '00010', '00010', '00100', '01000', '01000', '10000'],
+};
+
+const DATE_STAMP_CORE_COLOR = { red: 255, green: 176, blue: 76 };
+const DATE_STAMP_GLOW_INNER = { red: 255, green: 140, blue: 56 };
+const DATE_STAMP_GLOW_OUTER = { red: 150, green: 68, blue: 18 };
+const DATE_STAMP_SHADOW = { red: 8, green: 4, blue: 2 };
+
+const formatDateStamp = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+
+  return `${year}/${month}/${day}`;
+};
+
+const drawPixel = (
+  data: Uint8Array,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  color: { red: number; green: number; blue: number },
+) => {
+  if (x < 0 || x >= width || y < 0 || y >= height) {
+    return;
+  }
+
+  const index = (y * width + x) * 4;
+  data[index] = color.red;
+  data[index + 1] = color.green;
+  data[index + 2] = color.blue;
+  data[index + 3] = 255;
+};
+
+const blendPixel = (
+  data: Uint8Array,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  color: { red: number; green: number; blue: number },
+  alpha: number,
+) => {
+  if (x < 0 || x >= width || y < 0 || y >= height) {
+    return;
+  }
+
+  const clampedAlpha = Math.max(0, Math.min(1, alpha));
+  if (clampedAlpha === 0) {
+    return;
+  }
+
+  const index = (y * width + x) * 4;
+  const baseRed = data[index];
+  const baseGreen = data[index + 1];
+  const baseBlue = data[index + 2];
+
+  data[index] = clamp(baseRed * (1 - clampedAlpha) + color.red * clampedAlpha);
+  data[index + 1] = clamp(baseGreen * (1 - clampedAlpha) + color.green * clampedAlpha);
+  data[index + 2] = clamp(baseBlue * (1 - clampedAlpha) + color.blue * clampedAlpha);
+  data[index + 3] = 255;
+};
+
+const drawDateStamp = (
+  data: Uint8Array,
+  width: number,
+  height: number,
+  date: Date,
+) => {
+  const stampText = formatDateStamp(date);
+  const scale = Math.max(2, Math.min(7, Math.floor(width / 260)));
+  const glyphWidth = 5;
+  const glyphHeight = 7;
+  const charSpacing = Math.max(2, Math.floor(scale * 1.35));
+  const margin = Math.max(14, scale * 7);
+  const textWidth = stampText.length * glyphWidth * scale + (stampText.length - 1) * charSpacing;
+  const textHeight = glyphHeight * scale;
+  const startX = Math.max(0, width - margin - textWidth);
+  const startY = Math.max(0, height - margin - textHeight);
+  const chars = Array.from(stampText);
+  const projectionSlope = Math.max(1, Math.floor(scale * 0.45));
+  const glowRadius = Math.max(2, Math.floor(scale * 1.05));
+  const outlineRadius = Math.max(1, Math.floor(scale * 0.45));
+
+  let cursorX = startX;
+
+  for (let charIndex = 0; charIndex < chars.length; charIndex += 1) {
+    const char = chars[charIndex];
+    const glyph = DIGIT_GLYPHS[char];
+    if (!glyph) {
+      cursorX += glyphWidth * scale + charSpacing;
+      continue;
+    }
+
+    const offsetY = Math.floor(((chars.length - 1 - charIndex) * projectionSlope) / chars.length);
+    const wobbleY = ((charIndex + 1) * 37) % 3 === 0 ? 1 : 0;
+    const charBaseY = startY + offsetY + wobbleY;
+
+    for (let gy = 0; gy < glyph.length; gy += 1) {
+      const row = glyph[gy];
+      for (let gx = 0; gx < row.length; gx += 1) {
+        if (row[gx] !== '1') {
+          continue;
+        }
+
+        const pixelX = cursorX + gx * scale;
+        const pixelY = charBaseY + gy * scale;
+
+        for (let sy = 0; sy < scale; sy += 1) {
+          for (let sx = 0; sx < scale; sx += 1) {
+            const currentX = pixelX + sx;
+            const currentY = pixelY + sy;
+
+            for (let dy = -glowRadius; dy <= glowRadius; dy += 1) {
+              for (let dx = -glowRadius; dx <= glowRadius; dx += 1) {
+                const distance = Math.abs(dx) + Math.abs(dy);
+                if (distance > glowRadius + 1) {
+                  continue;
+                }
+
+                if (distance <= Math.max(1, Math.floor(glowRadius / 2))) {
+                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_INNER, 0.24);
+                } else {
+                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_OUTER, 0.12);
+                }
+              }
+            }
+
+            for (let oy = -outlineRadius; oy <= outlineRadius; oy += 1) {
+              for (let ox = -outlineRadius; ox <= outlineRadius; ox += 1) {
+                if (ox === 0 && oy === 0) {
+                  continue;
+                }
+                blendPixel(data, width, height, currentX + ox, currentY + oy, DATE_STAMP_SHADOW, 0.64);
+              }
+            }
+
+            blendPixel(data, width, height, currentX + 2, currentY + 2, DATE_STAMP_SHADOW, 0.42);
+
+            const densityDrop = (gx + gy + sx + sy + charIndex * 3) % 31 === 0;
+            if (!densityDrop) {
+              blendPixel(data, width, height, currentX, currentY, DATE_STAMP_CORE_COLOR, 0.92);
+            }
+          }
+        }
+      }
+    }
+
+    cursorX += glyphWidth * scale + charSpacing;
+  }
+};
+
 const yieldToMainThread = async (): Promise<void> => {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 };
@@ -147,9 +349,7 @@ export const applyFilmEffectToPhoto = async (
     shouldCancel?: () => boolean;
   },
 ): Promise<string> => {
-  if (effectType !== 'mono' && effectType !== 'vivid' && effectType !== 'retro') {
-    return uri;
-  }
+  const shouldApplyFilter = effectType === 'mono' || effectType === 'vivid' || effectType === 'retro';
 
   try {
     const normalizeActions: ImageManipulator.Action[] = [{ resize: { width: MAX_PROCESS_WIDTH } }];
@@ -191,17 +391,21 @@ export const applyFilmEffectToPhoto = async (
     const pixelData = decoded.data;
 
     let processed = true;
-    if (effectType === 'mono') {
-      processed = await applyMonoFilter(pixelData, options?.shouldCancel);
-    } else if (effectType === 'vivid') {
-      processed = await applyVividFilter(pixelData, options?.shouldCancel);
-    } else {
-      processed = await applyRetroFilter(pixelData, options?.shouldCancel);
+    if (shouldApplyFilter) {
+      if (effectType === 'mono') {
+        processed = await applyMonoFilter(pixelData, options?.shouldCancel);
+      } else if (effectType === 'vivid') {
+        processed = await applyVividFilter(pixelData, options?.shouldCancel);
+      } else {
+        processed = await applyRetroFilter(pixelData, options?.shouldCancel);
+      }
     }
 
     if (!processed || options?.shouldCancel?.()) {
       return uri;
     }
+
+    drawDateStamp(pixelData, decoded.width, decoded.height, new Date());
 
     const encoded = jpeg.encode(
       {
@@ -226,7 +430,8 @@ export const applyFilmEffectToPhoto = async (
     const targetDir = `${basePath}developed/`;
     await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
 
-    const outputUri = `${targetDir}${Date.now()}_${effectType}.jpg`;
+    const outputLabel = shouldApplyFilter ? effectType : 'dated';
+    const outputUri = `${targetDir}${Date.now()}_${outputLabel}.jpg`;
     await FileSystem.writeAsStringAsync(outputUri, outputBase64, {
       encoding: FileSystem.EncodingType.Base64,
     });

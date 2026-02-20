@@ -19,7 +19,7 @@ interface DarkroomScreenProps {
 }
 
 // 現像に必要な時間（秒）[初期値=1時間] - 開発中は短くしてもOK
-const INITIAL_SECONDS = 30;
+const INITIAL_SECONDS = 5;
 
 // 現像処理の画面コンポーネント
 export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, photo }) => {
