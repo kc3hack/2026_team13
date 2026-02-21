@@ -715,15 +715,15 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                           source={{ uri: item.uri }}
                           style={styles.gridImage}
                           resizeMode="cover"
-                          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
+                          //blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
                         />
-                        {selectedTab === 'undeveloped' && (
+                        {/*selectedTab === 'undeveloped' && (
                           <BlurView
                             intensity={Platform.OS === 'ios' ? 22 : 0}
                             tint="default"
                             style={styles.photoBlurOverlay}
                           />
-                        )}
+                        )*/}
                         {isSelectionMode && (
                           <View style={[styles.selectionBadge, selectedPhotoIds.includes(item.id) && styles.selectionBadgeActive]}>
                             <Text style={styles.selectionBadgeText}>{selectedPhotoIds.includes(item.id) ? '✓' : ''}</Text>
@@ -742,7 +742,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
           </View>
         </View>
       </View>
-
+        
       {selectedPhoto && (
         <Pressable
           style={styles.detailModalBackdrop}
@@ -765,16 +765,18 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
               source={{ uri: selectedPhoto.uri }}
               style={[styles.detailImage, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
               resizeMode="contain"
-              blurRadius={selectedPhoto.status === 'undeveloped' ? 22 : 0}
+              //blurRadius={selectedPhoto.status === 'undeveloped' ? 22 : 0}
             />
-            {selectedPhoto.status === 'undeveloped' && (
+            {/*selectedPhoto.status === 'undeveloped' && (
               <BlurView
                 intensity={Platform.OS === 'ios' ? 22 : 0}
                 tint="default"
                 style={[styles.detailBlurOverlay, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
               />
-            )}
+            )*/}
           </Pressable>
+
+          {/* ナビゲーションボタン*/}
           {selectedPhotoIndex > 0 && (
             <TouchableOpacity
               style={[styles.detailModalNavButton, styles.detailModalNavButtonLeft]}
@@ -854,7 +856,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                 <Text style={styles.menuInfoValue}>{formattedCreatedAt}</Text>
 
                 <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
-                {/* ★修正: メニュー内のフィルム名表示もmonoをCinemaと表示する */}
+                {/* ★修正: メニュー内のフィルム名表示もMonoをCinemaと表示する */}
                 <Text style={styles.menuInfoValue}>
                   {menuTargetPhoto?.film_name === 'Mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
                 </Text>
