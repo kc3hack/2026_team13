@@ -29,6 +29,9 @@ export const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
 
   leftPanel: {
     flex: 1,
@@ -117,6 +120,7 @@ export const styles = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    marginBottom: 12,
   },
   formRow: {
     marginBottom: 9,
@@ -170,5 +174,47 @@ export const styles = StyleSheet.create({
   },
   disabledBtn: {
     opacity: 0.6,
+  },
+  debugCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  debugCardLeft: {
+    width: '100%',
+    maxWidth: 300,
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  debugAllBtn: {
+    marginBottom: 8,
+  },
+  debugButtonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  debugFilmBtn: {
+    borderWidth: 1,
+    borderColor: '#444',
+    backgroundColor: '#101010',
+    borderRadius: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+  },
+  debugFilmBtnText: {
+    fontSize: 10,
+    color: '#ffffff',
+    fontFamily: 'Courier',
+    letterSpacing: 0.4,
   },
 });

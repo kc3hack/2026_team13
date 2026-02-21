@@ -613,7 +613,7 @@ const handleCheckCommits = async () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Top-right toolbar: film inventory + refresh + settings */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { left: screenWidth * 0.42 }]}> 
         {FILM_TYPES.map((type) => {
           const meta = FILM_META[type];
           return (
