@@ -28,7 +28,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { deletePhoto, getPhotosByStatus, PhotoWithFilmName, getFilmInventory } from '../utils/sqlite';
-import { getUndevelopedPhotosFromDirectory, hasUnprocessedUndevelopedPhotos, rebuildUndevelopedAlbumWithProcessing } from '../utils/undevelopedAlbumProcessor';
+import { applyUndevelopedPreviewEffect, getUndevelopedPreviewUriByPhotoId } from '../utils/photoEffects';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 import { styles } from '../styles/AlbumScreen.styles';
@@ -91,6 +91,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
   const [isProcessingUndeveloped, setIsProcessingUndeveloped] = useState(false);
+  const [unprocessedPhotoIds, setUnprocessedPhotoIds] = useState<number[]>([]);
   
   // ★修正: 初期ステートを3種類のみに限定
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
@@ -100,6 +101,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   } as FilmInventory);
   
   const [currentPage, setCurrentPage] = useState(0);
+  const loadRequestIdRef = useRef(0);
 
   const { checkForCommits } = useGithubCommits();
 
@@ -227,23 +229,72 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   }, [totalPages]);
 
   const load = useCallback(async (status: PhotoTab) => {
-    let list: PhotoWithFilmName[] = [];
+    const requestId = ++loadRequestIdRef.current;
+    const isStale = () => loadRequestIdRef.current !== requestId;
+
+    setIsProcessingUndeveloped(false);
 
     if (status === 'undeveloped') {
-      const shouldProcess = await hasUnprocessedUndevelopedPhotos();
-      if (shouldProcess) {
-        setIsProcessingUndeveloped(true);
-        try {
-          await rebuildUndevelopedAlbumWithProcessing();
-        } finally {
-          setIsProcessingUndeveloped(false);
-        }
+      const undevelopedPhotos = await getPhotosByStatus('undeveloped');
+      if (isStale()) return;
+
+      const previewRows = await Promise.all(
+        undevelopedPhotos.map(async (photo) => ({
+          photo,
+          previewUri: await getUndevelopedPreviewUriByPhotoId(photo.id),
+        })),
+      );
+      if (isStale()) return;
+
+      setPhotos(
+        previewRows.map(({ photo, previewUri }) => ({
+          ...photo,
+          uri: previewUri ?? photo.uri,
+        })),
+      );
+
+      const missingPreviewPhotos = previewRows
+        .filter(({ previewUri }) => !previewUri)
+        .map(({ photo }) => photo);
+
+      setUnprocessedPhotoIds(missingPreviewPhotos.map((photo) => photo.id));
+
+      if (missingPreviewPhotos.length === 0) {
+        return;
       }
-      list = await getUndevelopedPhotosFromDirectory();
-    } else {
-      list = await getPhotosByStatus(status);
+
+      setIsProcessingUndeveloped(true);
+      void (async () => {
+        try {
+          for (const photo of missingPreviewPhotos) {
+            if (isStale()) return;
+
+            const generatedUri = await applyUndevelopedPreviewEffect(photo.uri, {
+              outputFileName: `${photo.id}_undeveloped.jpg`,
+            });
+
+            if (isStale()) return;
+            if (generatedUri !== photo.uri) {
+              setPhotos((prev) => prev.map((item) => (
+                item.id === photo.id
+                  ? { ...item, uri: generatedUri }
+                  : item
+              )));
+              setUnprocessedPhotoIds((prev) => prev.filter((id) => id !== photo.id));
+            }
+          }
+        } finally {
+          if (!isStale()) {
+            setIsProcessingUndeveloped(false);
+          }
+        }
+      })();
+      return;
     }
 
+    const list = await getPhotosByStatus(status);
+    if (isStale()) return;
+    setUnprocessedPhotoIds([]);
     setPhotos(list);
   }, []);
 
@@ -818,7 +869,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                           source={{ uri: item.uri }}
                           style={styles.gridImage}
                           resizeMode="cover"
-                          //blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
+                          blurRadius={selectedTab === 'undeveloped' && unprocessedPhotoIds.includes(item.id) ? 14 : 0}
                         />
                         {/*selectedTab === 'undeveloped' && (
                           <BlurView
@@ -868,7 +919,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
               source={{ uri: selectedPhoto.uri }}
               style={[styles.detailImage, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
               resizeMode="contain"
-              //blurRadius={selectedPhoto.status === 'undeveloped' ? 22 : 0}
+              blurRadius={selectedPhoto.status === 'undeveloped' && unprocessedPhotoIds.includes(selectedPhoto.id) ? 22 : 0}
             />
             {/*selectedPhoto.status === 'undeveloped' && (
               <BlurView
