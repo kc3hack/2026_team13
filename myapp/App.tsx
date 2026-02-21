@@ -14,6 +14,7 @@ import { getUserSettings, clearUserSettings } from './src/utils/storage';
 import { CameraScreen } from './src/screens/CameraScreen';
 
 type Screen = 'Loading' | 'Setup' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom' | 'Camera';
+const ANDROID_GLOBAL_SCALE = 0.86;
 
 interface PendingDevelopPhoto {
   id: number;
@@ -224,7 +225,13 @@ export default function App() {
   return (
     <View style={styles.container} {...iosEdgeBackPanResponder.panHandlers}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+      <Animated.View
+        style={[
+          styles.content,
+          { opacity: fadeAnim },
+          Platform.OS === 'android' && styles.androidScaledContent,
+        ]}
+      >
         {renderContent()}
       </Animated.View>
     </View>
@@ -241,6 +248,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  androidScaledContent: {
+    transform: [{ scale: ANDROID_GLOBAL_SCALE }],
   },
   loadingWrap: {
     flex: 1,
