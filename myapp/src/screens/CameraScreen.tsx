@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
 import { useGithubCommits } from '../hooks/useGithubCommits';
@@ -103,17 +104,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
     })
   ).current;
 
-  if (!permission) return <View />;
-  if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.permissionText}>カメラ権限が必要です</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.dashboardBtn}>
-          <Text style={styles.btnText}>許可</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  
 
   const handleZoom = (increment: boolean) => {
     setZoom((prev) => Math.max(0, Math.min(increment ? prev + 0.1 : prev - 0.1, 1)));
@@ -126,6 +117,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   };
 
   const takePicture = async () => {
+    if (!permission?.granted) {
+      Alert.alert('カメラの権限が必要です', 'カメラを使用するには権限を許可してください', [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: '設定を開く', onPress: requestPermission },
+      ]);
+      return;
+    }
+
     if (!cameraRef.current || isShooting || !canShoot || !selectedFilm || !activeFilmId) return;
 
     try {
