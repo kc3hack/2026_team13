@@ -16,13 +16,11 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
   const { width, height } = useWindowDimensions();
   const [image, setImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 });
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0});
   const [filmIdByType, setFilmIdByType] = useState<Record<RewardFilmType, number | null>>({
     mono: null,
     vivid: null,
     retro: null,
-    disposable: null,
-    soft: null,
   });
   const [selectedFilmType, setSelectedFilmType] = useState<RewardFilmType | null>(null);
   const [backgroundMode, setBackgroundMode] = useState<MenuBackgroundMode>('light');
@@ -52,8 +50,6 @@ export const ImagePickerScreen: React.FC<ImagePickerScreenProps> = ({ onBack, on
       mono: byEffect.get('mono') ?? findFallbackId(['mono', 'monochrome']),
       vivid: byEffect.get('vivid') ?? findFallbackId(['vivid']),
       retro: byEffect.get('retro') ?? findFallbackId(['retro', 'vintage']),
-      disposable: byEffect.get('disposable') ?? findFallbackId(['disposable', '使い捨て']),
-      soft: byEffect.get('soft') ?? findFallbackId(['soft', 'dream', 'ソフト']),
     };
   };
 

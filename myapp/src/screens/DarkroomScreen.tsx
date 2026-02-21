@@ -1,10 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, Platform, SafeAreaView, Text, TouchableOpacity, View, PanResponder, AppState, Alert, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, BackHandler, Image, Platform, SafeAreaView, Text, TouchableOpacity, View, PanResponder, AppState, Alert, useWindowDimensions, Animated, Easing, Pressable, ScrollView, FlatList } from 'react-native';
 import { Audio } from 'expo-av';
+import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import * as Haptics from 'expo-haptics';
 import { completeDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri, getFilmInventory, countDevelopingPhotos, countPendingPhotos } from '../utils/sqlite';
 import { applyFilmEffectToPhoto } from '../utils/photoEffects';
 import { useGithubCommits } from '../hooks/useGithubCommits';
+import { getDarkroomUseNativeRipple } from '../utils/storage';
 import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 
 import { styles as albumStyles } from '../styles/AlbumScreen.styles';
@@ -14,9 +20,11 @@ import { DarkroomSkiaView } from '../components/DarkroomSkiaView';
 interface DarkroomScreenProps {
   onBack: () => void;
   onGoSettings?: () => void;
+  onGoAlbum?: () => void;
 }
 
 const SESSION_SECONDS = 10;
+const MAX_DEVELOPING_BATCH = 5;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
 let lastPlayedDarkroomBgmIndex: number | null = null;
 const DARKROOM_ENVIRONMENT_BGMS: number[] = [
@@ -29,8 +37,10 @@ const DARKROOM_ENVIRONMENT_BGMS: number[] = [
   require('../../assets/sounds/environment/VSQSE_1010_room_ambient_05.mp3'),
   require('../../assets/sounds/environment/VSQSE_1042_old_growth_forest_02.mp3'),
 ];
+const DARKROOM_THUNDER_BGM_INDEX = 5;
+const DARKROOM_THUNDER_WEIGHT = 1;
+const DARKROOM_NORMAL_WEIGHT = 3;
 
-// ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
 interface DevelopingPhoto {
@@ -39,7 +49,18 @@ interface DevelopingPhoto {
   filmId: number;
 }
 
-export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSettings }) => {
+interface ResultPhoto {
+  id: number;
+  beforeUri: string;
+  afterUri: string;
+  aspectRatio: number;
+}
+
+export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSettings, onGoAlbum }) => {
+  const [fontsLoaded] = useFonts({
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
   const [developingPhotos, setDevelopingPhotos] = useState<DevelopingPhoto[]>([]);
   const [isPreparing, setIsPreparing] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(SESSION_SECONDS);
@@ -48,15 +69,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [isSessionCompleted, setIsSessionCompleted] = useState(false);
   const [completionMessage, setCompletionMessage] = useState('');
   const [isFinishingSession, setIsFinishingSession] = useState(false);
+  const [isResultModalVisible, setIsResultModalVisible] = useState(false);
+  const [resultPhotos, setResultPhotos] = useState<ResultPhoto[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [useNativeRipple, setUseNativeRipple] = useState(false);
   const [rightPanelDim, setRightPanelDim] = useState({ width: 0, height: 0 });
-  
-  // ★修正: 初期ステートを3種類のみに限定
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
-    mono: 0, 
-    vivid: 0, 
-    retro: 0 
-  } as FilmInventory);
-  
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 } as FilmInventory);
   const [developingCount, setDevelopingCount] = useState(0);
   const [totalPendingCount, setTotalPendingCount] = useState(0);
 
@@ -67,10 +85,55 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const lastWaterTouchAtRef = useRef(0);
   const cancelProcessingRef = useRef(false);
   const finalizedSessionRef = useRef(false);
+  const revealProgress = useRef(new Animated.Value(0)).current;
   const { checkForCommits } = useGithubCommits();
 
   const activePhoto = developingPhotos[0] || null;
+  const boldFont = { fontFamily: 'CourierPrime_700Bold' as const, fontWeight: 'normal' as const };
   const latestStateRef = useRef({ remainingSeconds, isPaused, activePhotoId: activePhoto?.id });
+
+  if (!fontsLoaded) {
+    return <SafeAreaView style={albumStyles.container} />;
+  }
+
+  const resolveAspectRatio = useCallback(async (uri: string): Promise<number> => {
+    return new Promise((resolve) => {
+      Image.getSize(
+        uri,
+        (width, height) => {
+          if (width > 0 && height > 0) {
+            resolve(width / height);
+          } else {
+            resolve(3 / 4);
+          }
+        },
+        () => resolve(3 / 4),
+      );
+    });
+  }, []);
+
+  const ensureQueuedPhotosStarted = useCallback(async (queuedIds: number[]): Promise<number[]> => {
+    if (queuedIds.length === 0) return [];
+
+    const startedSet = new Set<number>();
+
+    for (let attempt = 0; attempt < 3 && startedSet.size < queuedIds.length; attempt += 1) {
+      const remaining = queuedIds.filter((id) => !startedSet.has(id));
+      if (remaining.length === 0) break;
+
+      const startedIds = await startDevelopingSession(remaining);
+      startedIds.forEach((id) => startedSet.add(id));
+
+      const currentlyDeveloping = await getDevelopingPhotos();
+      currentlyDeveloping.forEach((photo) => {
+        if (queuedIds.includes(photo.id)) {
+          startedSet.add(photo.id);
+        }
+      });
+    }
+
+    return queuedIds.filter((id) => startedSet.has(id));
+  }, []);
 
   useEffect(() => {
     latestStateRef.current = { remainingSeconds, isPaused, activePhotoId: activePhoto?.id };
@@ -95,6 +158,14 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     loadInventory();
   }, []);
 
+  useEffect(() => {
+    const loadRippleMode = async () => {
+      const enabled = await getDarkroomUseNativeRipple();
+      setUseNativeRipple(enabled);
+    };
+    void loadRippleMode();
+  }, []);
+
   const handleCheckCommits = async () => {
     const result = await checkForCommits();
     if (result) {
@@ -117,7 +188,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       clearTimeout(waterTouchStopTimerRef.current);
       waterTouchStopTimerRef.current = null;
     }
-
     const currentSound = waterTouchSoundRef.current;
     if (!currentSound) return;
     waterTouchSoundRef.current = null;
@@ -127,9 +197,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
   const playWaterTouchSound = useCallback(async () => {
     const now = Date.now();
-    if (now - lastWaterTouchAtRef.current < 100) {
-      return;
-    }
+    if (now - lastWaterTouchAtRef.current < 100) return;
     lastWaterTouchAtRef.current = now;
 
     try {
@@ -140,12 +208,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         );
         waterTouchSoundRef.current = sound;
       }
-
       if (waterTouchStopTimerRef.current) {
         clearTimeout(waterTouchStopTimerRef.current);
         waterTouchStopTimerRef.current = null;
       }
-
       await waterTouchSoundRef.current.setPositionAsync(0);
       await waterTouchSoundRef.current.playAsync();
 
@@ -153,9 +219,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         const currentSound = waterTouchSoundRef.current;
         if (!currentSound) return;
         void (async () => {
-          try {
-            await currentSound.stopAsync();
-          } catch {}
+          try { await currentSound.stopAsync(); } catch {}
         })();
         waterTouchStopTimerRef.current = null;
       }, 5000);
@@ -165,13 +229,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   }, []);
 
   const runPhotoEffects = useCallback(async (rows: DevelopingPhoto[]) => {
+    const updatedRows = rows.map((row) => ({ ...row }));
     cancelProcessingRef.current = false;
-    for (const targetPhoto of rows) {
-      if (cancelProcessingRef.current) return;
+    for (const targetPhoto of updatedRows) {
+      if (cancelProcessingRef.current) return updatedRows;
       try {
         const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
-        
-        // ★修正: 使わなくなった使い捨て・ソフトの条件式を削除
         const effectType =
           resolvedEffectType
           ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
@@ -185,8 +248,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelProcessingRef.current,
         });
-        if (cancelProcessingRef.current) return;
+
+        if (cancelProcessingRef.current) return updatedRows;
         if (processedUri !== targetPhoto.uri) {
+          targetPhoto.uri = processedUri;
           await updatePhotoUri(targetPhoto.id, processedUri);
           setDevelopingPhotos((prev) => prev.map((item) => (item.id === targetPhoto.id ? { ...item, uri: processedUri } : item)));
         }
@@ -194,6 +259,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         console.log('failed to process photo in darkroom', error);
       }
     }
+    return updatedRows;
   }, []);
 
   const finalizeSession = useCallback(async (rows: DevelopingPhoto[]) => {
@@ -202,12 +268,47 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     setIsFinishingSession(true);
 
     try {
-      await runPhotoEffects(rows);
+      const beforeById = new Map(rows.map((item) => [item.id, item.uri]));
+      const processedRows = await runPhotoEffects(rows);
+      const resultRows: ResultPhoto[] = await Promise.all(
+        processedRows.map(async (item) => ({
+          id: item.id,
+          beforeUri: beforeById.get(item.id) ?? item.uri,
+          afterUri: item.uri,
+          aspectRatio: await resolveAspectRatio(item.uri),
+        })),
+      );
+
       await completeDevelopingSession(rows.map((item) => item.id));
-      setRemainingSeconds(0);
-      setCompletionMessage('現像完了。アルバムを確認してください');
+      const nextUndeveloped = await getUndevelopedPhotosOldest(MAX_DEVELOPING_BATCH);
+
+      if (nextUndeveloped.length > 0) {
+        setDevelopingPhotos(
+          nextUndeveloped.map((item) => ({
+            id: item.id,
+            uri: item.uri,
+            filmId: item.film_id,
+          })),
+        );
+      } else {
+        setDevelopingPhotos([]);
+      }
+
+      setIsSessionStarted(false);
+      setIsPaused(false);
+      setRemainingSeconds(SESSION_SECONDS);
+      setCompletionMessage(
+        nextUndeveloped.length > 0
+          ? '現像完了。次の写真を現像できます'
+          : '現像完了。現像対象の写真がありません',
+      );
       setIsSessionCompleted(true);
-      if (activePhoto) delete globalDarkroomCache[activePhoto.id];
+      setResultPhotos(resultRows);
+      setIsResultModalVisible(resultRows.length > 0);
+
+      if (rows[0]) {
+        delete globalDarkroomCache[rows[0].id];
+      }
       await refreshPhotoCounts();
     } catch (error) {
       console.log('failed to finalize developing session', error);
@@ -215,7 +316,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       setIsFinishingSession(false);
       await stopAndUnloadWaterSound();
     }
-  }, [runPhotoEffects, stopAndUnloadWaterSound, activePhoto, refreshPhotoCounts]);
+  }, [refreshPhotoCounts, resolveAspectRatio, runPhotoEffects, stopAndUnloadWaterSound]);
 
   useEffect(() => {
     let isActive = true;
@@ -232,28 +333,40 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         if (!isActive) return;
 
         if (developing.length > 0) {
-          setDevelopingPhotos([{ id: developing[0].id, uri: developing[0].uri, filmId: developing[0].film_id }]);
+          setDevelopingPhotos(
+            developing.slice(0, MAX_DEVELOPING_BATCH).map((item) => ({
+              id: item.id,
+              uri: item.uri,
+              filmId: item.film_id,
+            })),
+          );
           setIsSessionStarted(true);
-          
+
           const cached = globalDarkroomCache[developing[0].id];
           if (cached) {
-             setRemainingSeconds(cached.remaining);
-             setIsPaused(cached.isPaused);
+            setRemainingSeconds(cached.remaining);
+            setIsPaused(cached.isPaused);
           } else {
-             setRemainingSeconds(SESSION_SECONDS);
-             setIsPaused(false);
+            setRemainingSeconds(SESSION_SECONDS);
+            setIsPaused(false);
           }
           return;
         }
 
-        const undeveloped = await getUndevelopedPhotosOldest(1);
+        const undeveloped = await getUndevelopedPhotosOldest(MAX_DEVELOPING_BATCH);
         if (!isActive) return;
 
         if (undeveloped.length > 0) {
-           setDevelopingPhotos([{ id: undeveloped[0].id, uri: undeveloped[0].uri, filmId: undeveloped[0].film_id }]);
+          setDevelopingPhotos(
+            undeveloped.map((item) => ({
+              id: item.id,
+              uri: item.uri,
+              filmId: item.film_id,
+            })),
+          );
         } else {
-           setDevelopingPhotos([]);
-           setCompletionMessage('現像対象の写真がありません');
+          setDevelopingPhotos([]);
+          setCompletionMessage('現像対象の写真がありません');
         }
         setRemainingSeconds(SESSION_SECONDS);
         setIsSessionStarted(false);
@@ -263,8 +376,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         if (isActive) setIsPreparing(false);
       }
     };
+
     void loadSession();
-    return () => { isActive = false; };
+    return () => {
+      isActive = false;
+    };
   }, [refreshPhotoCounts]);
 
   useEffect(() => {
@@ -282,6 +398,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   }, [isSessionStarted, isSessionCompleted, isPaused]);
 
   useEffect(() => {
+    // タイマーが0になったら完了処理を呼ぶ
     if (isSessionStarted && remainingSeconds === 0 && !isSessionCompleted && !isFinishingSession && developingPhotos.length > 0) {
       void finalizeSession(developingPhotos);
     }
@@ -314,18 +431,21 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     void (async () => {
       try {
         setIsPreparing(true);
-        const startedIds = await startDevelopingSession([activePhoto.id]);
+        const queuedIds = developingPhotos.map((item) => item.id);
+        const startedIds = await ensureQueuedPhotosStarted(queuedIds);
         if (startedIds.length > 0) {
+          setDevelopingPhotos((prev) => prev.filter((item) => startedIds.includes(item.id)));
           setIsSessionStarted(true);
           setIsPaused(false);
           setCompletionMessage('');
+          setPreviewIndex(0);
           await refreshPhotoCounts();
         }
       } finally {
         setIsPreparing(false);
       }
     })();
-  }, [activePhoto, isSessionCompleted, isSessionStarted, refreshPhotoCounts]);
+  }, [activePhoto, developingPhotos, ensureQueuedPhotosStarted, isSessionCompleted, isSessionStarted, refreshPhotoCounts]);
 
   const togglePause = () => {
       Haptics.selectionAsync();
@@ -344,19 +464,31 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (waterSoundRef.current) return;
       try {
         if (selectedDarkroomBgmRef.current === null) {
-          let randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
-          if (DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null) {
-            while (randomIndex === lastPlayedDarkroomBgmIndex) {
-              randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
-            }
-          }
+          const candidateIndices = DARKROOM_ENVIRONMENT_BGMS
+            .map((_, index) => index)
+            .filter((index) =>
+              !(DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null && index === lastPlayedDarkroomBgmIndex),
+            );
+
+          const weightedIndices = candidateIndices.flatMap((index) => {
+            const weight = index === DARKROOM_THUNDER_BGM_INDEX
+              ? DARKROOM_THUNDER_WEIGHT
+              : DARKROOM_NORMAL_WEIGHT;
+            return Array(weight).fill(index);
+          });
+
+          const randomPool = weightedIndices.length > 0
+            ? weightedIndices
+            : candidateIndices;
+          const randomIndex = randomPool[Math.floor(Math.random() * randomPool.length)];
+
           selectedDarkroomBgmRef.current = DARKROOM_ENVIRONMENT_BGMS[randomIndex];
           lastPlayedDarkroomBgmIndex = randomIndex;
         }
 
         const { sound } = await Audio.Sound.createAsync(
           selectedDarkroomBgmRef.current,
-          { shouldPlay: true, isLooping: true },
+          { shouldPlay: true, isLooping: true, volume: 0.1 },
         );
         if (!isMounted) {
           await sound.unloadAsync();
@@ -376,6 +508,68 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       void stopAndUnloadWaterTouchSound();
     }
   }, [remainingSeconds, isSessionCompleted, stopAndUnloadWaterTouchSound]);
+
+  useEffect(() => {
+    if (!isResultModalVisible || resultPhotos.length === 0) return;
+    revealProgress.setValue(0);
+    Animated.timing(revealProgress, {
+      toValue: 1,
+      duration: 1700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [isResultModalVisible, resultPhotos.length, revealProgress]);
+
+  const handleStartNextDeveloping = useCallback(() => {
+    if (isFinishingSession) return;
+
+    void (async () => {
+      try {
+        setIsPreparing(true);
+        const undeveloped = await getUndevelopedPhotosOldest(MAX_DEVELOPING_BATCH);
+
+        if (undeveloped.length === 0) {
+          setDevelopingPhotos([]);
+          setIsSessionStarted(false);
+          setIsSessionCompleted(false);
+          setResultPhotos([]);
+          setIsResultModalVisible(false);
+          setRemainingSeconds(SESSION_SECONDS);
+          setCompletionMessage('現像対象の写真がありません');
+          await refreshPhotoCounts();
+          return;
+        }
+
+        const nextPhotos = undeveloped.map((item) => ({
+          id: item.id,
+          uri: item.uri,
+          filmId: item.film_id,
+        }));
+
+        setDevelopingPhotos(nextPhotos);
+        setIsSessionCompleted(false);
+        setIsPaused(false);
+        setRemainingSeconds(SESSION_SECONDS);
+        setCompletionMessage('');
+        setResultPhotos([]);
+        setIsResultModalVisible(false);
+        finalizedSessionRef.current = false;
+
+        const startedIds = await ensureQueuedPhotosStarted(nextPhotos.map((item) => item.id));
+        setDevelopingPhotos((prev) => prev.filter((item) => startedIds.includes(item.id)));
+        setIsSessionStarted(startedIds.length > 0);
+                
+        setPreviewIndex(0);
+
+        
+        await refreshPhotoCounts();
+      } catch (error) {
+        console.log('failed to start next developing session', error);
+      } finally {
+        setIsPreparing(false);
+      }
+    })();
+  }, [ensureQueuedPhotosStarted, isFinishingSession, refreshPhotoCounts]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
@@ -411,27 +605,24 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     );
   }
 
-  const isMaskVisible = !isSessionCompleted;
-
   return (
     <SafeAreaView style={albumStyles.container} {...swipePanResponder.panHandlers}>
       <View style={albumStyles.topBar}>
-        {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
         {DISPLAY_FILMS.map((type) => {
           const meta = FILM_META[type];
           return (
             <View key={type} style={albumStyles.filmBadge}>
               <Image source={meta.image} style={albumStyles.filmBadgeImage} />
-              <Text style={albumStyles.filmBadgeCount}>{filmInventory[type]}</Text>
+              <Text style={[albumStyles.filmBadgeCount, boldFont]}>{filmInventory[type]}</Text>
             </View>
           );
         })}
         <TouchableOpacity style={albumStyles.topBarButton} onPress={handleCheckCommits}>
-          <Text style={albumStyles.topBarButtonText}>↻</Text>
+          <Text style={[albumStyles.topBarButtonText, boldFont]}>↻</Text>
         </TouchableOpacity>
         {onGoSettings && (
           <TouchableOpacity style={albumStyles.topBarButton} onPress={onGoSettings}>
-            <Text style={albumStyles.topBarButtonText}>⚙</Text>
+            <Text style={[albumStyles.topBarButtonText, boldFont]}>⚙</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -485,7 +676,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                 {developingCount} / {totalPendingCount}
               </Text>
 
-              <Text style={[albumStyles.label, { marginTop: 32 }]}>[ ACTION ]</Text>
+              <Text style={[albumStyles.label, { marginTop: Platform.OS === 'android' ? 14 : 32 }]}>[ ACTION ]</Text>
               <View style={albumStyles.buttonRow}>
                 {!isSessionStarted && !isSessionCompleted && activePhoto && (
                   <TouchableOpacity style={albumStyles.dashboardBtn} onPress={handleStartDeveloping}>
@@ -503,9 +694,16 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                   </TouchableOpacity>
                 )}
                 {isSessionCompleted && (
-                  <View style={albumStyles.dashboardBtn}>
-                    <Text style={darkroomStyles.actionBtnText}>CHECK ALBUM</Text>
-                  </View>
+                  <>
+                    <TouchableOpacity style={albumStyles.dashboardBtn} onPress={() => onGoAlbum?.()}>
+                      <Text style={darkroomStyles.actionBtnText}>CHECK ALBUM</Text>
+                    </TouchableOpacity>
+                    {activePhoto && (
+                      <TouchableOpacity style={albumStyles.dashboardBtn} onPress={handleStartNextDeveloping}>
+                        <Text style={darkroomStyles.actionBtnText}>START DEVELOPING</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
               </View>
             </View>
@@ -513,30 +711,117 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         </View>
 
         <View style={[albumStyles.rightPanel, darkroomStyles.darkroomRightPanel]} onLayout={(e) => setRightPanelDim(e.nativeEvent.layout)}>
-          {rightPanelDim.width > 0 && activePhoto ? (
+          {rightPanelDim.width > 0 ? (
             <View style={darkroomStyles.fullscreenContent}>
-              {isMaskVisible && (
+              {developingPhotos.length > 0 ? (
+                <FlatList
+                  horizontal
+                  pagingEnabled
+                  data={developingPhotos}
+                  keyExtractor={(item) => item.id.toString()}
+                  style={darkroomStyles.fullscreenSkiaWrap}
+                  showsHorizontalScrollIndicator={false}
+                  initialNumToRender={1}
+                  maxToRenderPerBatch={2}
+                  windowSize={2}
+                  removeClippedSubviews
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={(event) => {
+                    const pageWidth = rightPanelDim.width || 1;
+                    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
+                    setPreviewIndex(Math.max(0, Math.min(nextIndex, developingPhotos.length - 1)));
+                  }}
+                  renderItem={({ item, index }) => (
+                    <View style={{ width: rightPanelDim.width, height: rightPanelDim.height }}>
+                      <DarkroomSkiaView
+                        photoUri={item.uri}
+                        width={rightPanelDim.width}
+                        height={rightPanelDim.height}
+                        useNativeRipple={useNativeRipple}
+                        onWaterTouch={() => {
+                          if (!isSessionCompleted && remainingSeconds > 0 && isSessionStarted && !isFinishingSession && index === previewIndex) {
+                            void playWaterTouchSound();
+                          }
+                        }}
+                      />
+                    </View>
+                  )}
+                />
+              ) : (
                 <View style={darkroomStyles.fullscreenSkiaWrap}>
                   <DarkroomSkiaView
-                    photoUri={activePhoto.uri}
+                    photoUri={null}
                     width={rightPanelDim.width}
                     height={rightPanelDim.height}
-                    onWaterTouch={() => {
-                      if (!isSessionCompleted && remainingSeconds > 0 && isSessionStarted && !isFinishingSession) {
-                        void playWaterTouchSound();
-                      }
-                    }}
+                    useNativeRipple={useNativeRipple}
                   />
                 </View>
               )}
             </View>
           ) : (
             <View style={darkroomStyles.emptyBackground}>
-              <Text style={darkroomStyles.emptyBackgroundText}>NO PHOTO</Text>
+              <ActivityIndicator color="#6cae75" />
             </View>
           )}
         </View>
       </View>
+
+      {(isResultModalVisible && resultPhotos.length > 0) && (
+        <View style={darkroomStyles.resultModalBackdrop}>
+          <View style={darkroomStyles.resultModalCard}>
+            <View style={darkroomStyles.resultHeader}>
+              <Text style={darkroomStyles.resultHeaderText}>SUCCESSFULLY DEVELOPED!</Text>
+            </View>
+
+            <ScrollView style={darkroomStyles.resultBodyScroll} contentContainerStyle={darkroomStyles.resultBodyContent}>
+              {resultPhotos.map((item, index) => (
+                <View key={item.id} style={darkroomStyles.resultItemCard}>
+                  <Text style={darkroomStyles.resultItemTitle}>RESULT #{index + 1}</Text>
+                  <View style={darkroomStyles.resultComparisonRow}>
+                    <View style={darkroomStyles.resultColumn}>
+                      <Text style={darkroomStyles.resultColumnTitle}>BEFORE</Text>
+                      <View style={[darkroomStyles.resultImageFrame, { aspectRatio: item.aspectRatio }]}>
+                        <Image source={{ uri: item.beforeUri }} resizeMode="contain" style={darkroomStyles.resultImage} />
+                      </View>
+                    </View>
+
+                    <View style={darkroomStyles.resultArrowWrap}>
+                      <Text style={darkroomStyles.resultArrowText}>→</Text>
+                    </View>
+
+                    <View style={darkroomStyles.resultColumn}>
+                      <Text style={darkroomStyles.resultColumnTitle}>AFTER</Text>
+                      <View style={[darkroomStyles.resultImageFrame, { aspectRatio: item.aspectRatio }]}>
+                        <Image source={{ uri: item.afterUri }} resizeMode="contain" style={darkroomStyles.resultImage} />
+                        <Animated.Image
+                          source={{ uri: item.afterUri }}
+                          resizeMode="contain"
+                          blurRadius={10}
+                          style={[
+                            darkroomStyles.resultImageOverlay,
+                            {
+                              opacity: revealProgress.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [1, 0],
+                              }),
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={darkroomStyles.resultFooter}>
+              <Pressable style={darkroomStyles.resultCloseButton} onPress={() => setIsResultModalVisible(false)}>
+                <Text style={darkroomStyles.resultCloseButtonText}>CLOSE</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };

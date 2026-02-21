@@ -1,8 +1,11 @@
-import { Dimensions, StyleSheet } from 'react-native';
+import { Dimensions, Platform, StyleSheet } from 'react-native';
 
 export const PARALLAX_MAX_SCROLL = 500;
 export const PARALLAX_FACTOR = 0.3;
 export const PARALLAX_OFFSET = PARALLAX_MAX_SCROLL * PARALLAX_FACTOR;
+const scale = Platform.OS === 'android' ? 0.9 : 1;
+const edgeInset = Platform.OS === 'android' ? 6 : 0;
+const s = (value: number) => Math.round(value * scale);
 
 export const getStyles = (screenWidth: number, screenHeight: number) => {
   return StyleSheet.create({

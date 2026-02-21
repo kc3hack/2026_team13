@@ -1,7 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions, Platform } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Linking from 'expo-linking';
+import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import * as Haptics from 'expo-haptics';
 import { consumeFilm, addPhoto, getFilmInventory } from '../utils/sqlite';
 import { useGithubCommits } from '../hooks/useGithubCommits';
@@ -30,6 +35,10 @@ interface CameraScreenProps {
 }
 
 export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, onBack, onGoDarkroom, onGoAlbum, onGoDarkroomScreen, onGoSettings }) => {
+  const [fontsLoaded] = useFonts({
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [zoom, setZoom] = useState(0);
@@ -47,16 +56,19 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
     filmType && DISPLAY_FILMS.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
   );
+  const androidScale = Platform.OS === 'android' ? 0.9 : 1;
+  const androidInset = Platform.OS === 'android' ? 8 : 0;
+  const androidPreviewScale = Platform.OS === 'android' ? 1.25 : 1;
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
   const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
 
-  const topBarLeft = width * 0.42;
-  const previewHeight = Math.max(140, Math.min(260, Math.round(height * 0.38)));
+  const topBarLeft = width * (Platform.OS === 'android' ? 0.29 : 0.42) + androidInset;
+  const previewHeight = Math.round(Math.max(140, Math.min(260, Math.round(height * 0.38))) * androidPreviewScale);
   const previewWidth = Math.round(previewHeight * (4 / 3));
   const gripHeight = previewHeight;
   const gripWidth = Math.max(64, Math.min(96, Math.round(previewHeight * 0.42)));
-  const shutterButtonSize = Math.max(44, Math.min(64, Math.round(previewHeight * 0.31)));
+  const shutterButtonSize = Math.round(Math.max(44, Math.min(64, Math.round(previewHeight * 0.31))) * androidScale);
   const shutterInnerSize = Math.round(shutterButtonSize * 0.78);
 
   // ★修正: UI上の表示名を 'mono' の場合は 'Cinema' に変更して表示
@@ -67,6 +79,9 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   
   const cameraRef = useRef<CameraView>(null);
   const { checkForCommits } = useGithubCommits();
+
+  const regularFont = { fontFamily: 'CourierPrime_400Regular' as const, fontWeight: 'normal' as const };
+  const boldFont = { fontFamily: 'CourierPrime_700Bold' as const, fontWeight: 'normal' as const };
 
   useEffect(() => {
     const loadInventory = async () => {
@@ -171,15 +186,15 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
           return (
             <View key={type} style={styles.filmBadge}>
               <Image source={meta.image} style={styles.filmBadgeImage} />
-              <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
+              <Text style={[styles.filmBadgeCount, boldFont]}>{filmInventory[type]}</Text>
             </View>
           );
         })}
         <TouchableOpacity style={styles.topBarButton} onPress={handleCheckCommits}>
-          <Text style={styles.topBarButtonText}>↻</Text>
+          <Text style={[styles.topBarButtonText, boldFont]}>↻</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.topBarButton} onPress={onGoSettings}>
-          <Text style={styles.topBarButtonText}>⚙</Text>
+          <Text style={[styles.topBarButtonText, boldFont]}>⚙</Text>
         </TouchableOpacity>
       </View>
 
@@ -195,10 +210,10 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
           </View>
 
           <View style={styles.dashboard}>
-            <Text style={styles.systemText}>DEVIT  //  SYSTEM_READY</Text>
+            <Text style={[styles.systemText, regularFont]}>DEVIT  //  SYSTEM_READY</Text>
             
             <View style={styles.instruments}>
-              <Text style={styles.label}>[ FILM_TYPE ]</Text>
+              <Text style={[styles.label, regularFont]}>[ FILM_TYPE ]</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -223,7 +238,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                       <Text style={[styles.filmSelectLabel, isSelected && styles.filmSelectLabelActive]}>
                         {getFilmDisplayName(type)}
                       </Text>
-                      <Text style={[styles.filmSelectCount, count === 0 && styles.filmSelectCountEmpty]}>
+                      <Text style={[styles.filmSelectCount, count === 0 && styles.filmSelectCountEmpty, regularFont]}>
                         x{count}
                       </Text>
                     </TouchableOpacity>
@@ -231,25 +246,25 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                 })}
               </ScrollView>
               {selectedFilm && filmInventory[selectedFilm] === 0 && (
-                <Text style={styles.warningText}>⚠ フィルムがありません</Text>
+                <Text style={[styles.warningText, regularFont]}>⚠ フィルムがありません</Text>
               )}
               
               <View style={styles.row}>
                 <View>
-                  <Text style={styles.label}>[ FLASH ]</Text>
+                  <Text style={[styles.label, regularFont]}>[ FLASH ]</Text>
                   <TouchableOpacity onPress={toggleFlash} style={styles.dashboardBtn}>
-                    <Text style={styles.btnText}>{flash.toUpperCase()}</Text>
+                    <Text style={[styles.btnText, boldFont]}>{flash.toUpperCase()}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
               <View style={styles.controlsRow}>
                 <View>
-                  <Text style={styles.label}>[ ZOOM_LEVEL ]</Text>
+                  <Text style={[styles.label, regularFont]}>[ ZOOM_LEVEL ]</Text>
                   <View style={styles.zoomControls}>
-                    <TouchableOpacity onPress={() => handleZoom(false)} style={styles.dashboardBtn}><Text style={styles.btnText}>-</Text></TouchableOpacity>
-                    <Text style={styles.valueText}>{(zoom * 10).toFixed(1)}</Text>
-                    <TouchableOpacity onPress={() => handleZoom(true)} style={styles.dashboardBtn}><Text style={styles.btnText}>+</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleZoom(false)} style={[styles.dashboardBtn, styles.zoomSymbolButton]}><Text style={styles.zoomSymbolText}>-</Text></TouchableOpacity>
+                    <Text style={[styles.valueText, regularFont]}>{(zoom * 10).toFixed(1)}</Text>
+                    <TouchableOpacity onPress={() => handleZoom(true)} style={[styles.dashboardBtn, styles.zoomSymbolButton]}><Text style={styles.zoomSymbolText}>+</Text></TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -266,12 +281,16 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
               flash={flash}
               ref={cameraRef}
             />
-            {canShoot && (
+            {canShoot ? (
               <>
                 <View style={styles.crosshairVertical} />
                 <View style={styles.crosshairHorizontal} />
                 <View style={styles.recDot} />
               </>
+            ) : (
+              <View style={styles.cameraOff}>
+                <Text style={[styles.cameraOffText, boldFont]}>NO FILM</Text>
+              </View>
             )}
             <ShutterOverlay width={previewWidth} height={previewHeight} isOpen={canShoot} shutterTrigger={shutterTrigger} />
           </View>

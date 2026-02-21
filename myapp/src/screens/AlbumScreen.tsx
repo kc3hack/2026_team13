@@ -19,6 +19,11 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
@@ -42,6 +47,10 @@ type PhotoTab = 'developed' | 'undeveloped';
 type SortOrder = 'newest' | 'oldest' | 'film';
 
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, onGoSettings, onGoDarkroom }) => {
+  const [fontsLoaded] = useFonts({
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
   const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList) => {
     React.useEffect(effect, deps);
   };
@@ -58,6 +67,8 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     film: '種別順',
   };
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const topBarLeft = screenWidth * (Platform.OS === 'android' ? 0.29 : 0.42);
+  const albumAndroidScale = Platform.OS === 'android' ? 0.82 : 1;
   const detailPhotoGap = 16;
   const detailScrollInterval = screenWidth + detailPhotoGap;
   const [photos, setPhotos] = useState<PhotoWithFilmName[]>([]);
@@ -153,8 +164,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     const availableWidth = rightPanelWidth - GRID_SIDE_PADDING * 2 - totalGap;
     const sizeByWidth = Math.floor(availableWidth / GRID_COLUMNS);
     const maxByHeight = Math.floor((screenHeight - 80) / 2.4);
-    return Math.min(sizeByWidth, maxByHeight);
-  }, [rightPanelWidth, screenHeight]);
+    const baseSize = Math.min(sizeByWidth, maxByHeight);
+    return Math.max(56, Math.floor(baseSize * albumAndroidScale));
+  }, [rightPanelWidth, screenHeight, albumAndroidScale]);
+
+  const regularFont = { fontFamily: 'CourierPrime_400Regular' as const, fontWeight: 'normal' as const };
+  const boldFont = { fontFamily: 'CourierPrime_700Bold' as const, fontWeight: 'normal' as const };
 
   const sortedPhotos = useMemo(() => {
     const getPhotoTime = (photo: PhotoWithFilmName): number => {
@@ -569,8 +584,71 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     }
   };
 
+  const renderItem = ({ item, index }: { item: PhotoWithFilmName; index: number }) => (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => {
+        if (isSelectionMode) { //選択モード中、単押しで選択追加/解除
+          togglePhotoSelection(item.id);
+          return;
+        }
+        setSelectedPhotoIndex(index);
+        
+        setTimeout(() => {
+    setSelectedPhoto(item);
+    applyDetailZoomScale(DETAIL_ZOOM_MIN);
+  }, 50);
+
+        console.log('Photo pressed', item.id, index);
+      }}
+      onLongPress={() => {
+        if (isSelectionMode) {
+          togglePhotoSelection(item.id);
+          return;
+        }
+        setIsSelectionMode(true);
+        setSelectedPhotoIds([item.id]);
+      }}
+      style={[
+        styles.photoItem,
+        {
+          width: thumbnailSize,
+          marginRight: (index + 1) % GRID_COLUMNS === 0 ? 0 : GRID_GAP,
+        },
+      ]}
+    >
+      <View style={[styles.photoWrap, { width: thumbnailSize, height: thumbnailSize }]}>
+        <Image
+          source={{ uri: item.uri }}
+          style={[styles.photo, { width: thumbnailSize, height: thumbnailSize }]}
+          resizeMode="cover"
+          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
+        />
+        {selectedTab === 'undeveloped' && (
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 22 : 0}
+            tint="default"
+            style={styles.photoBlurOverlay}
+          />
+        )}
+        {isSelectionMode && (
+          <View style={[styles.selectionBadge, selectedPhotoIds.includes(item.id) && styles.selectionBadgeActive]}>
+            <Text style={styles.selectionBadgeText}>{selectedPhotoIds.includes(item.id) ? '✓' : ''}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.metaText}>状態: {item.status === 'developed' ? '現像済' : '現像前'}</Text>
+      <Text style={styles.metaText}>フィルム: {item.film_name ?? '不明'}</Text>
+    </TouchableOpacity>
+  );
+
+  if (!fontsLoaded) {
+    return <SafeAreaView style={styles.container} />;
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Top-right toolbar: film inventory + refresh + settings */}
       <View style={[styles.topBar, { left: screenWidth * 0.42 }]}> 
         {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
         {DISPLAY_FILMS.map((type) => {
@@ -578,15 +656,15 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
           return (
             <View key={type} style={styles.filmBadge}>
               <Image source={meta.image} style={styles.filmBadgeImage} />
-              <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
+              <Text style={[styles.filmBadgeCount, boldFont]}>{filmInventory[type]}</Text>
             </View>
           );
         })}
         <TouchableOpacity style={styles.topBarButton} onPress={handleCheckCommits}>
-          <Text style={styles.topBarButtonText}>↻</Text>
+          <Text style={[styles.topBarButtonText, boldFont]}>↻</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.topBarButton} onPress={onGoSettings}>
-          <Text style={styles.topBarButtonText}>⚙</Text>
+          <Text style={[styles.topBarButtonText, boldFont]}>⚙</Text>
         </TouchableOpacity>
       </View>
 
@@ -601,7 +679,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
           </View>
 
           <View style={styles.dashboard}>
-            <Text style={styles.systemText}>DEVIT  //  ALBUM</Text>
+            <Text style={[styles.systemText, regularFont]}>DEVIT  //  ALBUM</Text>
 
             <View style={styles.instruments}>
               <Text style={styles.label}>[ PICTURE TYPE ]</Text>
