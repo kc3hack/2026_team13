@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Image, Platform, SafeAreaView, Text, TouchableOpacity, View, PanResponder, AppState, Alert, useWindowDimensions } from 'react-native';
 import { Audio } from 'expo-av';
+import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import * as Haptics from 'expo-haptics';
 // ★ 修正: countDevelopingPhotos と 新しく作った countPendingPhotos をインポート
 import { completeDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri, getFilmInventory, countDevelopingPhotos, countPendingPhotos } from '../utils/sqlite';
@@ -27,6 +32,10 @@ interface DevelopingPhoto {
 }
 
 export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSettings }) => {
+  const [fontsLoaded] = useFonts({
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
   const [developingPhotos, setDevelopingPhotos] = useState<DevelopingPhoto[]>([]);
   const [isPreparing, setIsPreparing] = useState(true);
   const [remainingSeconds, setRemainingSeconds] = useState(SESSION_SECONDS);
@@ -48,7 +57,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const { checkForCommits } = useGithubCommits();
 
   const activePhoto = developingPhotos[0] || null;
+  const boldFont = { fontFamily: 'CourierPrime_700Bold' as const, fontWeight: 'normal' as const };
   const latestStateRef = useRef({ remainingSeconds, isPaused, activePhotoId: activePhoto?.id });
+
+  if (!fontsLoaded) {
+    return <SafeAreaView style={albumStyles.container} />;
+  }
 
   useEffect(() => {
     latestStateRef.current = { remainingSeconds, isPaused, activePhotoId: activePhoto?.id };
@@ -330,16 +344,16 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           return (
             <View key={type} style={albumStyles.filmBadge}>
               <Image source={meta.image} style={albumStyles.filmBadgeImage} />
-              <Text style={albumStyles.filmBadgeCount}>{filmInventory[type]}</Text>
+              <Text style={[albumStyles.filmBadgeCount, boldFont]}>{filmInventory[type]}</Text>
             </View>
           );
         })}
         <TouchableOpacity style={albumStyles.topBarButton} onPress={handleCheckCommits}>
-          <Text style={albumStyles.topBarButtonText}>↻</Text>
+          <Text style={[albumStyles.topBarButtonText, boldFont]}>↻</Text>
         </TouchableOpacity>
         {onGoSettings && (
           <TouchableOpacity style={albumStyles.topBarButton} onPress={onGoSettings}>
-            <Text style={albumStyles.topBarButtonText}>⚙</Text>
+            <Text style={[albumStyles.topBarButtonText, boldFont]}>⚙</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -395,7 +409,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                 {developingCount} / {totalPendingCount}
               </Text>
 
-              <Text style={[albumStyles.label, { marginTop: 32 }]}>[ ACTION ]</Text>
+              <Text style={[albumStyles.label, { marginTop: Platform.OS === 'android' ? 14 : 32 }]}>[ ACTION ]</Text>
               <View style={albumStyles.buttonRow}>
                 {!isSessionStarted && !isSessionCompleted && activePhoto && (
                   <TouchableOpacity style={albumStyles.dashboardBtn} onPress={handleStartDeveloping}>

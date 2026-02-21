@@ -13,7 +13,7 @@ export const styles = StyleSheet.create({
   /* ── Top bar (same as AlbumScreen) ── */
   topBar: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? s(20) + edgeInset : s(10),
+    top: Platform.OS === 'android' ? s(24) + edgeInset : s(10),
     right: edgeInset,
     left: '42%',
     zIndex: 20,
@@ -152,11 +152,31 @@ export const styles = StyleSheet.create({
     paddingHorizontal: s(15),
     borderRadius: s(4),
     alignSelf: 'flex-start',
+    minWidth: s(34),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   btnText: {
     color: '#ccc',
     fontFamily: 'Courier',
     fontWeight: 'bold',
+    fontSize: s(12),
+    lineHeight: s(14),
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  zoomSymbolButton: {
+    minWidth: s(30),
+    paddingHorizontal: s(10),
+    paddingVertical: s(3),
+  },
+  zoomSymbolText: {
+    color: '#ccc',
+    fontSize: s(14),
+    lineHeight: s(16),
+    fontWeight: '700',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   zoomControls: {
     flexDirection: 'row',

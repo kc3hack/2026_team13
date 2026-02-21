@@ -2,8 +2,10 @@ import { Platform, StyleSheet } from 'react-native';
 const GRID_COLUMNS = 3;
 const ITEM_MARGIN = 8;
 const scale = Platform.OS === 'android' ? 0.9 : 1;
+const compactScale = Platform.OS === 'android' ? 0.84 : 1;
 const edgeInset = Platform.OS === 'android' ? 6 : 0;
 const s = (value: number) => Math.round(value * scale);
+const c = (value: number) => Math.round(value * compactScale);
 export const styles = StyleSheet.create({
   /* ── Root ── */
   container: {
@@ -14,9 +16,9 @@ export const styles = StyleSheet.create({
   /* ── Top bar (film badges + refresh + settings) ── */
   topBar: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? s(20) + edgeInset : s(10),
+    top: Platform.OS === 'android' ? s(24) + edgeInset : s(10),
     right: edgeInset,
-    left: '42%',
+    left: Platform.OS === 'android' ? '29%' : '42%',
     zIndex: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -120,25 +122,25 @@ export const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   instruments: {
-    gap: s(12),
+    gap: Platform.OS === 'android' ? c(12) : s(12),
   },
   label: {
     color: '#666',
     fontFamily: 'Courier',
-    fontSize: s(12),
-    marginBottom: s(4),
+    fontSize: Platform.OS === 'android' ? c(12) : s(12),
+    marginBottom: Platform.OS === 'android' ? c(4) : s(4),
   },
   buttonRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: s(8),
-    marginBottom: s(4),
+    gap: Platform.OS === 'android' ? c(8) : s(8),
+    marginBottom: Platform.OS === 'android' ? c(4) : s(4),
   },
   dashboardBtn: {
     borderWidth: 1,
     borderColor: '#444',
-    paddingVertical: s(5),
-    paddingHorizontal: s(14),
+    paddingVertical: Platform.OS === 'android' ? c(4) : s(5),
+    paddingHorizontal: Platform.OS === 'android' ? c(12) : s(14),
     borderRadius: s(4),
   },
   dashboardBtnActive: {
@@ -148,7 +150,7 @@ export const styles = StyleSheet.create({
   btnText: {
     color: '#888',
     fontFamily: 'cinecaption226',
-    fontSize: s(13),
+    fontSize: Platform.OS === 'android' ? c(12) : s(13),
   },
   btnTextActive: {
     color: '#fff',
@@ -159,7 +161,7 @@ export const styles = StyleSheet.create({
   dangerBtnText: {
     color: '#ff4444',
     fontFamily: 'cinecaption226',
-    fontSize: s(13),
+    fontSize: Platform.OS === 'android' ? c(12) : s(13),
   },
 
   /* ── Pagination controls ── */
@@ -167,14 +169,14 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: s(12),
-    paddingVertical: s(8),
+    gap: Platform.OS === 'android' ? c(10) : s(12),
+    paddingVertical: Platform.OS === 'android' ? c(6) : s(8),
   },
   paginationButton: {
     borderWidth: 1,
     borderColor: '#444',
-    paddingVertical: s(6),
-    paddingHorizontal: s(12),
+    paddingVertical: Platform.OS === 'android' ? c(5) : s(6),
+    paddingHorizontal: Platform.OS === 'android' ? c(10) : s(12),
     borderRadius: s(4),
   },
   paginationButtonDisabled: {
@@ -183,7 +185,7 @@ export const styles = StyleSheet.create({
   paginationButtonText: {
     color: '#fff',
     fontFamily: 'cinecaption226',
-    fontSize: s(16),
+    fontSize: Platform.OS === 'android' ? c(14) : s(16),
     fontWeight: 'bold',
   },
   paginationButtonTextDisabled: {
@@ -192,15 +194,15 @@ export const styles = StyleSheet.create({
   paginationText: {
     color: '#ccc',
     fontFamily: 'Courier',
-    fontSize: s(13),
-    minWidth: s(50),
+    fontSize: Platform.OS === 'android' ? c(12) : s(13),
+    minWidth: Platform.OS === 'android' ? c(44) : s(50),
     textAlign: 'center',
   },
 
   /* ── Right panel (photo grid) ── */
   rightPanel: {
     flex: 0.58,
-    paddingTop: s(50),
+    paddingTop: Platform.OS === 'android' ? s(64) : s(50),
   },
   list: {
     paddingHorizontal: Platform.OS === 'android' ? s(14) : s(12),
@@ -440,10 +442,14 @@ detailFooterText: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-start',
+    paddingLeft: Platform.OS === 'android' ? s(4) : 0,
+    paddingRight: Platform.OS === 'android' ? s(26) : 0,
   },
   gridItem: {
-    width: `${100 / GRID_COLUMNS}%`,
-    padding: ITEM_MARGIN / 2,
+    width: Platform.OS === 'android' ? '31%' : `${100 / GRID_COLUMNS}%`,
+    padding: Platform.OS === 'android' ? s(2) : ITEM_MARGIN / 2,
+    marginRight: Platform.OS === 'android' ? s(4) : 0,
+    marginBottom: Platform.OS === 'android' ? s(4) : 0,
   },
   gridImage: {
     width: '100%',

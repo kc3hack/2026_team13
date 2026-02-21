@@ -54,12 +54,13 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   );
   const androidScale = Platform.OS === 'android' ? 0.9 : 1;
   const androidInset = Platform.OS === 'android' ? 8 : 0;
+  const androidPreviewScale = Platform.OS === 'android' ? 1.25 : 1;
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
   const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
 
-  const topBarLeft = width * 0.42 + androidInset;
-  const previewHeight = Math.round(Math.max(140, Math.min(260, Math.round(height * 0.38))) * androidScale);
+  const topBarLeft = width * (Platform.OS === 'android' ? 0.29 : 0.42) + androidInset;
+  const previewHeight = Math.round(Math.max(140, Math.min(260, Math.round(height * 0.38))) * androidPreviewScale);
   const previewWidth = Math.round(previewHeight * (4 / 3));
   const gripHeight = previewHeight;
   const gripWidth = Math.max(64, Math.min(96, Math.round(previewHeight * 0.42)));
@@ -249,9 +250,9 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                 <View>
                   <Text style={[styles.label, regularFont]}>[ ZOOM_LEVEL ]</Text>
                   <View style={styles.zoomControls}>
-                    <TouchableOpacity onPress={() => handleZoom(false)} style={styles.dashboardBtn}><Text style={[styles.btnText, boldFont]}>-</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleZoom(false)} style={[styles.dashboardBtn, styles.zoomSymbolButton]}><Text style={styles.zoomSymbolText}>-</Text></TouchableOpacity>
                     <Text style={[styles.valueText, regularFont]}>{(zoom * 10).toFixed(1)}</Text>
-                    <TouchableOpacity onPress={() => handleZoom(true)} style={styles.dashboardBtn}><Text style={[styles.btnText, boldFont]}>+</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleZoom(true)} style={[styles.dashboardBtn, styles.zoomSymbolButton]}><Text style={styles.zoomSymbolText}>+</Text></TouchableOpacity>
                   </View>
                 </View>
               </View>

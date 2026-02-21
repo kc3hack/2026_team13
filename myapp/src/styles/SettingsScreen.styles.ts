@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
   },
   backTouchable: {
     position: 'absolute',
-    top: s(16) + edgeInset,
+    top: s(16) + edgeInset + (Platform.OS === 'android' ? s(6) : 0),
     left: s(12) + edgeInset,
     zIndex: 30,
     borderWidth: 1,
@@ -88,8 +88,8 @@ export const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   statusBlock: {
-    marginTop: 'auto',
-    marginBottom: s(12),
+    marginTop: Platform.OS === 'android' ? s(12) : 'auto',
+    marginBottom: Platform.OS === 'android' ? s(10) : s(12),
   },
   instruments: {
     gap: s(14),
@@ -206,6 +206,7 @@ export const styles = StyleSheet.create({
     borderRadius: s(4),
     paddingHorizontal: s(12),
     paddingVertical: s(10),
+    marginTop: Platform.OS === 'android' ? s(4) : 0,
   },
   debugAllBtn: {
     marginBottom: s(8),

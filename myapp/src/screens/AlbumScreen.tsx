@@ -18,6 +18,11 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
@@ -37,6 +42,10 @@ type PhotoTab = 'developed' | 'undeveloped';
 type SortOrder = 'newest' | 'oldest' | 'film';
 
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, onGoSettings, onGoDarkroom }) => {
+  const [fontsLoaded] = useFonts({
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
   const useFocusEffect = (effect: React.EffectCallback, deps: React.DependencyList) => {
     React.useEffect(effect, deps);
   };
@@ -54,6 +63,8 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     film: '種別順',
   };
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const topBarLeft = screenWidth * (Platform.OS === 'android' ? 0.29 : 0.42);
+  const albumAndroidScale = Platform.OS === 'android' ? 0.82 : 1;
   const detailPhotoGap = 16;
   const detailScrollInterval = screenWidth + detailPhotoGap;
   const [photos, setPhotos] = useState<PhotoWithFilmName[]>([]);
@@ -144,8 +155,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     const sizeByWidth = Math.floor(availableWidth / GRID_COLUMNS);
     // Also cap by screen height so a row doesn't overflow vertically
     const maxByHeight = Math.floor((screenHeight - 80) / 2.4);
-    return Math.min(sizeByWidth, maxByHeight);
-  }, [rightPanelWidth, screenHeight]);
+    const baseSize = Math.min(sizeByWidth, maxByHeight);
+    return Math.max(56, Math.floor(baseSize * albumAndroidScale));
+  }, [rightPanelWidth, screenHeight, albumAndroidScale]);
+
+  const regularFont = { fontFamily: 'CourierPrime_400Regular' as const, fontWeight: 'normal' as const };
+  const boldFont = { fontFamily: 'CourierPrime_700Bold' as const, fontWeight: 'normal' as const };
 
   const sortedPhotos = useMemo(() => {
     const getPhotoTime = (photo: PhotoWithFilmName): number => {
@@ -610,24 +625,28 @@ const handleCheckCommits = async () => {
     </TouchableOpacity>
   );
 
+  if (!fontsLoaded) {
+    return <SafeAreaView style={styles.container} />;
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Top-right toolbar: film inventory + refresh + settings */}
-      <View style={[styles.topBar, { left: screenWidth * 0.42 }]}> 
+      <View style={[styles.topBar, { left: topBarLeft }]}> 
         {FILM_TYPES.map((type) => {
           const meta = FILM_META[type];
           return (
             <View key={type} style={styles.filmBadge}>
               <Image source={meta.image} style={styles.filmBadgeImage} />
-              <Text style={styles.filmBadgeCount}>{filmInventory[type]}</Text>
+              <Text style={[styles.filmBadgeCount, boldFont]}>{filmInventory[type]}</Text>
             </View>
           );
         })}
         <TouchableOpacity style={styles.topBarButton} onPress={handleCheckCommits}>
-          <Text style={styles.topBarButtonText}>↻</Text>
+          <Text style={[styles.topBarButtonText, boldFont]}>↻</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.topBarButton} onPress={onGoSettings}>
-          <Text style={styles.topBarButtonText}>⚙</Text>
+          <Text style={[styles.topBarButtonText, boldFont]}>⚙</Text>
         </TouchableOpacity>
       </View>
 
@@ -645,7 +664,7 @@ const handleCheckCommits = async () => {
 
           {/* Dashboard controls */}
           <View style={styles.dashboard}>
-            <Text style={styles.systemText}>DEVIT  //  ALBUM</Text>
+            <Text style={[styles.systemText, regularFont]}>DEVIT  //  ALBUM</Text>
 
             <View style={styles.instruments}>
               <Text style={styles.label}>[ PICTURE TYPE ]</Text>
