@@ -63,8 +63,8 @@ export const styles = StyleSheet.create({
     color: '#6cae75',
     fontSize: s(18),
     letterSpacing: s(2),
-    fontFamily: 'Courier',
-    fontWeight: 'bold',
+    fontFamily: 'CourierPrime_700Bold',
+    fontWeight: 'normal',
   },
   resultComparisonRow: {
     flex: 1,
@@ -82,7 +82,8 @@ export const styles = StyleSheet.create({
     color: '#88c58f',
     fontSize: s(11),
     letterSpacing: s(1),
-    fontFamily: 'Courier',
+    fontFamily: 'CourierPrime_700Bold',
+    fontWeight: 'normal',
     marginBottom: s(6),
   },
   resultArrowWrap: {
@@ -93,8 +94,8 @@ export const styles = StyleSheet.create({
   resultArrowText: {
     color: '#6cae75',
     fontSize: s(22),
-    fontFamily: 'Courier',
-    fontWeight: '700',
+    fontFamily: 'CourierPrime_700Bold',
+    fontWeight: 'normal',
   },
   resultImageFrame: {
     width: '100%',
@@ -127,10 +128,10 @@ export const styles = StyleSheet.create({
   },
   resultCloseButtonText: {
     color: '#6cae75',
-    fontFamily: 'Courier',
+    fontFamily: 'CourierPrime_700Bold',
     letterSpacing: s(1),
     fontSize: s(12),
-    fontWeight: '700',
+    fontWeight: 'normal',
   },
   overlayCenter: {
     backgroundColor: 'rgba(5, 5, 5, 0.7)',

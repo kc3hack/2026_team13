@@ -686,7 +686,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         <View style={darkroomStyles.resultModalBackdrop}>
           <View style={darkroomStyles.resultModalCard}>
             <View style={darkroomStyles.resultHeader}>
-              <Text style={darkroomStyles.resultHeaderText}>DEVELOPED! 現像成功!!</Text>
+              <Text style={darkroomStyles.resultHeaderText}>SUCCESSFULLY DEVELOPED!</Text>
             </View>
 
             <View style={darkroomStyles.resultComparisonRow}>
