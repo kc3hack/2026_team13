@@ -24,6 +24,17 @@ interface DarkroomScreenProps {
 
 const SESSION_SECONDS = 10;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
+let lastPlayedDarkroomBgmIndex: number | null = null;
+const DARKROOM_ENVIRONMENT_BGMS: number[] = [
+  require('../../assets/sounds/environment/VSQSE_0701_morning_01.mp3'),
+  require('../../assets/sounds/environment/VSQSE_0713_rice_field_04.mp3'),
+  require('../../assets/sounds/environment/VSQSE_0744_rain_06_bird.mp3'),
+  require('../../assets/sounds/environment/VSQSE_0855_turtledove.mp3'),
+  require('../../assets/sounds/environment/VSQSE_0967_singing_of_insect_08.mp3'),
+  require('../../assets/sounds/environment/VSQSE_0988_thunder_02.mp3'),
+  require('../../assets/sounds/environment/VSQSE_1010_room_ambient_05.mp3'),
+  require('../../assets/sounds/environment/VSQSE_1042_old_growth_forest_02.mp3'),
+];
 
 interface DevelopingPhoto {
   id: number;
@@ -52,6 +63,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [totalPendingCount, setTotalPendingCount] = useState(0);
 
   const waterSoundRef = useRef<Audio.Sound | null>(null);
+  const selectedDarkroomBgmRef = useRef<number | null>(null);
+  const waterTouchSoundRef = useRef<Audio.Sound | null>(null);
+  const waterTouchStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastWaterTouchAtRef = useRef(0);
   const cancelProcessingRef = useRef(false);
   const finalizedSessionRef = useRef(false);
   const { checkForCommits } = useGithubCommits();
@@ -103,6 +118,58 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     waterSoundRef.current = null;
     try { await currentSound.stopAsync(); } catch {}
     try { await currentSound.unloadAsync(); } catch {}
+  }, []);
+
+  const stopAndUnloadWaterTouchSound = useCallback(async () => {
+    if (waterTouchStopTimerRef.current) {
+      clearTimeout(waterTouchStopTimerRef.current);
+      waterTouchStopTimerRef.current = null;
+    }
+
+    const currentSound = waterTouchSoundRef.current;
+    if (!currentSound) return;
+    waterTouchSoundRef.current = null;
+    try { await currentSound.stopAsync(); } catch {}
+    try { await currentSound.unloadAsync(); } catch {}
+  }, []);
+
+  const playWaterTouchSound = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastWaterTouchAtRef.current < 100) {
+      return;
+    }
+    lastWaterTouchAtRef.current = now;
+
+    try {
+      if (!waterTouchSoundRef.current) {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../assets/sounds/VSQSE_0604_water_splash_01.mp3'),
+          { shouldPlay: false, isLooping: false, volume: 0.2 },
+        );
+        waterTouchSoundRef.current = sound;
+      }
+
+      if (waterTouchStopTimerRef.current) {
+        clearTimeout(waterTouchStopTimerRef.current);
+        waterTouchStopTimerRef.current = null;
+      }
+
+      await waterTouchSoundRef.current.setPositionAsync(0);
+      await waterTouchSoundRef.current.playAsync();
+
+      waterTouchStopTimerRef.current = setTimeout(() => {
+        const currentSound = waterTouchSoundRef.current;
+        if (!currentSound) return;
+        void (async () => {
+          try {
+            await currentSound.stopAsync();
+          } catch {}
+        })();
+        waterTouchStopTimerRef.current = null;
+      }, 5000);
+    } catch (error) {
+      console.warn('水タッチSEの再生に失敗しました', error);
+    }
   }, []);
 
   const runPhotoEffects = useCallback(async (rows: DevelopingPhoto[]) => {
@@ -246,8 +313,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           globalDarkroomCache[activePhotoId] = { remaining: remainingSeconds, isPaused: true };
       }
       void stopAndUnloadWaterSound();
+      void stopAndUnloadWaterTouchSound();
+      selectedDarkroomBgmRef.current = null;
     };
-  }, [stopAndUnloadWaterSound]);
+  }, [stopAndUnloadWaterSound, stopAndUnloadWaterTouchSound]);
 
   const handleStartDeveloping = useCallback(() => {
     if (isSessionStarted || isSessionCompleted || !activePhoto) return;
@@ -283,8 +352,19 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       }
       if (waterSoundRef.current) return;
       try {
+        if (selectedDarkroomBgmRef.current === null) {
+          let randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
+          if (DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null) {
+            while (randomIndex === lastPlayedDarkroomBgmIndex) {
+              randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
+            }
+          }
+          selectedDarkroomBgmRef.current = DARKROOM_ENVIRONMENT_BGMS[randomIndex];
+          lastPlayedDarkroomBgmIndex = randomIndex;
+        }
+
         const { sound } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/water_asmr.mp3'),
+          selectedDarkroomBgmRef.current,
           { shouldPlay: true, isLooping: true },
         );
         if (!isMounted) {
@@ -299,6 +379,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     void syncWaterSound();
     return () => { isMounted = false; };
   }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
+
+  useEffect(() => {
+    if (remainingSeconds === 0 || isSessionCompleted) {
+      void stopAndUnloadWaterTouchSound();
+    }
+  }, [remainingSeconds, isSessionCompleted, stopAndUnloadWaterTouchSound]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
@@ -441,7 +527,16 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
             <View style={darkroomStyles.fullscreenContent}>
               {isMaskVisible && (
                 <View style={darkroomStyles.fullscreenSkiaWrap}>
-                  <DarkroomSkiaView photoUri={activePhoto.uri} width={rightPanelDim.width} height={rightPanelDim.height} />
+                  <DarkroomSkiaView
+                    photoUri={activePhoto.uri}
+                    width={rightPanelDim.width}
+                    height={rightPanelDim.height}
+                    onWaterTouch={() => {
+                      if (!isSessionCompleted && remainingSeconds > 0 && isSessionStarted && !isFinishingSession) {
+                        void playWaterTouchSound();
+                      }
+                    }}
+                  />
                 </View>
               )}
             </View>

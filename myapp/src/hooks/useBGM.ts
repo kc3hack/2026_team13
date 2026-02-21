@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
 import { getBGMVolume, setBGMVolume } from '../utils/storage';
 
-const BGM_FILE = require('../../assets/sounds/静止した宇宙.mp3');
+const BGM_FILE: number | null = null;
 
 export const useBGM = () => {
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -49,6 +49,11 @@ export const useBGM = () => {
 
   const loadBGM = async () => {
     try {
+      if (!BGM_FILE) {
+        soundRef.current = null;
+        return;
+      }
+
       if (soundRef.current) {
         try {
           const status = await soundRef.current.getStatusAsync();
@@ -73,6 +78,11 @@ export const useBGM = () => {
 
   const startBGM = async () => {
     try {
+      if (!BGM_FILE) {
+        setIsPlaying(false);
+        return;
+      }
+
       if (!soundRef.current) {
         await loadBGM();
       }
