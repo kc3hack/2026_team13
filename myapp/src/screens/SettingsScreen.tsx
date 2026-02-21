@@ -102,7 +102,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         await addFilm(type, 1);
       }
       const inventory = await getFilmInventory();
-      Alert.alert('Debug', `All films +1\nMONO:${inventory.mono} VIVID:${inventory.vivid} RETRO:${inventory.retro} DISP:${inventory.disposable} SOFT:${inventory.soft}`);
+      Alert.alert('Debug', `All films +1\nCinema:${inventory.mono} Vivid:${inventory.vivid} Retro:${inventory.retro} `);
     } catch (error) {
       console.log('failed to add all debug films', error);
       Alert.alert('Error', 'Failed to add debug films.');
