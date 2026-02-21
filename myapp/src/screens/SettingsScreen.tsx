@@ -125,8 +125,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
           <View style={styles.dashboard}>
             <Text style={[styles.systemText, regularFont]}>DEVIT // SETTINGS_CONFIG</Text>
             <View style={styles.statusBlock}>
-              <Text style={[styles.systemText, regularFont]}>MODE: AUTH LINK</Text>
-              <Text style={[styles.systemText, regularFont]}>STATUS: ONLINE</Text>
+              <Text style={[styles.systemTextdummy, regularFont]}>MODE: AUTH LINK</Text>
+              <Text style={[styles.systemTextdummy, regularFont]}>STATUS: ONLINE</Text>
             </View>
 
             <Text style={[styles.sectionTitle, boldFont]}>DEBUG FILM TOOLS</Text>

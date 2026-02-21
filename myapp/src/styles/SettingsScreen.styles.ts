@@ -75,6 +75,13 @@ export const styles = StyleSheet.create({
     marginBottom: 18,
     letterSpacing: 1,
   },
+  systemTextdummy: {
+    color: '#ffffff',
+    fontFamily: 'Courier',
+    fontSize: 14,
+    marginBottom: 18,
+    letterSpacing: 1,
+  },
   statusBlock: {
     marginTop: 'auto',
     marginBottom: 12,
