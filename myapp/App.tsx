@@ -3,6 +3,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform, PanResponder, ActivityIndicator, Animated } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SetupScreen } from './src/screens/SetupScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
@@ -14,7 +18,7 @@ import { getUserSettings, clearUserSettings } from './src/utils/storage';
 import { CameraScreen } from './src/screens/CameraScreen';
 
 type Screen = 'Loading' | 'Setup' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom' | 'Camera';
-const ANDROID_GLOBAL_SCALE = 0.86;
+const ANDROID_GLOBAL_SCALE = 0.89;
 
 interface PendingDevelopPhoto {
   id: number;
@@ -31,7 +35,10 @@ export default function App() {
   // ★ 変更: 7セグメントフォントを追加
   const [fontsLoaded] = useFonts({
     cinecaption226: require('./assets/fonts/cinecaption226.ttf'),
-    'DSEG7Classic-Regular': require('./assets/fonts/DSEG7Classic-Regular.ttf'), 
+    'DSEG7Classic-Regular': require('./assets/fonts/DSEG7Classic-Regular.ttf'),
+    Courier: CourierPrime_400Regular,
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
   });
   
   const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
@@ -215,6 +222,7 @@ export default function App() {
                 <DarkroomScreen
                   onBack={() => navigateTo('Camera')}
                   onGoSettings={() => navigateTo('Settings')}
+                  onGoAlbum={() => navigateTo('Album')}
                 />
               );
           default:
