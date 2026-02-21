@@ -7,7 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ScrollView,
   Switch,
 } from 'react-native';
 import { useFonts } from 'expo-font';
@@ -122,7 +121,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         <Text style={[styles.backText, boldFont]}>{'< ABORT'}</Text>
       </TouchableOpacity>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.mainLayout}>
         <View style={styles.leftPanel}>
           <View style={styles.gripDecor} />
@@ -232,7 +230,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
           </View>
         </View>
       </View>
-      </ScrollView>
     </SafeAreaView>
   );
 };
