@@ -38,11 +38,12 @@ export const styles = StyleSheet.create({
     letterSpacing: s(4),
   },
   resultModalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: s(16),
+    zIndex: 100,
   },
   resultModalCard: {
     width: '96%',

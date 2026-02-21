@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, Platform, SafeAreaView, Text, TouchableOpacity, View, PanResponder, AppState, Alert, useWindowDimensions, Modal, Animated, Easing, Pressable } from 'react-native';
+import { ActivityIndicator, BackHandler, Image, Platform, SafeAreaView, Text, TouchableOpacity, View, PanResponder, AppState, Alert, useWindowDimensions, Animated, Easing, Pressable } from 'react-native';
 import { Audio } from 'expo-av';
 import { useFonts } from 'expo-font';
 import {
@@ -677,12 +677,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         </View>
       </View>
 
-      <Modal
-        visible={isResultModalVisible && !!resultAfterPhotoUri}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsResultModalVisible(false)}
-      >
+      {(isResultModalVisible && !!resultAfterPhotoUri) && (
         <View style={darkroomStyles.resultModalBackdrop}>
           <View style={darkroomStyles.resultModalCard}>
             <View style={darkroomStyles.resultHeader}>
@@ -734,7 +729,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
             </View>
           </View>
         </View>
-      </Modal>
+      )}
     </SafeAreaView>
   );
 };
