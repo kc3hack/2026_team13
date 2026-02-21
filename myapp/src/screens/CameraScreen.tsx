@@ -8,13 +8,15 @@ import { FilmInventory, FILM_META, FILM_TYPES, RewardFilmType } from '../types';
 import { styles } from '../styles/CameraScreen.styles';
 import { ShutterOverlay } from '../components/ShutterOverlay';
 
-const FILM_ID_MAP: Record<RewardFilmType, number> = {
-  mono: 11,
+// ★修正: 3種類のみに限定
+const FILM_ID_MAP: Record<string, number> = {
+  mono: 11,   // (実質 Cinema)
   vivid: 12,
   retro: 13,
-  disposable: 14,
-  soft: 15,
 };
+
+// ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
+const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
 interface CameraScreenProps {
     filmType?: string;
@@ -32,16 +34,17 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const [isShooting, setIsShooting] = useState(false);
+  
+  // ★修正: 初期ステートも3種類のみに限定
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({
     mono: 0,
     vivid: 0,
     retro: 0,
-    disposable: 0,
-    soft: 0,
-  });
+  } as FilmInventory);
+  
   const [shutterTrigger, setShutterTrigger] = useState(0);
   const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
-    filmType && FILM_TYPES.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
+    filmType && DISPLAY_FILMS.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
   );
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
@@ -55,7 +58,11 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   const shutterButtonSize = Math.max(44, Math.min(64, Math.round(previewHeight * 0.31)));
   const shutterInnerSize = Math.round(shutterButtonSize * 0.78);
 
-  const getFilmDisplayName = (type: RewardFilmType): string => type;
+  // ★修正: UI上の表示名を 'mono' の場合は 'Cinema' に変更して表示
+  const getFilmDisplayName = (type: string): string => {
+    if (type === 'mono') return 'Cinema';
+    return type.charAt(0).toUpperCase() + type.slice(1); // 先頭大文字 (Vivid, Retro)
+  };
   
   const cameraRef = useRef<CameraView>(null);
   const { checkForCommits } = useGithubCommits();
@@ -154,7 +161,8 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
     <SafeAreaView style={styles.container} {...swipePanResponder.panHandlers}>
       {/* Top bar: film inventory + refresh + settings */}
       <View style={[styles.topBar, { left: topBarLeft }]}>
-        {FILM_TYPES.map((type) => {
+        {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
+        {DISPLAY_FILMS.map((type) => {
           const meta = FILM_META[type];
           return (
             <View key={type} style={styles.filmBadge}>
@@ -193,7 +201,8 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
                 style={styles.filmSelectScroll}
                 contentContainerStyle={styles.filmSelectRow}
               >
-                {FILM_TYPES.map((type) => {
+                {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
+                {DISPLAY_FILMS.map((type) => {
                   const meta = FILM_META[type];
                   const isSelected = selectedFilm === type;
                   const count = filmInventory[type];
@@ -288,4 +297,3 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
     </SafeAreaView>
   );
 }
-
