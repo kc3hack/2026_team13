@@ -36,6 +36,9 @@ const DARKROOM_ENVIRONMENT_BGMS: number[] = [
   require('../../assets/sounds/environment/VSQSE_1010_room_ambient_05.mp3'),
   require('../../assets/sounds/environment/VSQSE_1042_old_growth_forest_02.mp3'),
 ];
+const DARKROOM_THUNDER_BGM_INDEX = 5;
+const DARKROOM_THUNDER_WEIGHT = 1;
+const DARKROOM_NORMAL_WEIGHT = 3;
 
 // ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
@@ -401,12 +404,24 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (waterSoundRef.current) return;
       try {
         if (selectedDarkroomBgmRef.current === null) {
-          let randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
-          if (DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null) {
-            while (randomIndex === lastPlayedDarkroomBgmIndex) {
-              randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
-            }
-          }
+          const candidateIndices = DARKROOM_ENVIRONMENT_BGMS
+            .map((_, index) => index)
+            .filter((index) =>
+              !(DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null && index === lastPlayedDarkroomBgmIndex),
+            );
+
+          const weightedIndices = candidateIndices.flatMap((index) => {
+            const weight = index === DARKROOM_THUNDER_BGM_INDEX
+              ? DARKROOM_THUNDER_WEIGHT
+              : DARKROOM_NORMAL_WEIGHT;
+            return Array(weight).fill(index);
+          });
+
+          const randomPool = weightedIndices.length > 0
+            ? weightedIndices
+            : candidateIndices;
+          const randomIndex = randomPool[Math.floor(Math.random() * randomPool.length)];
+
           selectedDarkroomBgmRef.current = DARKROOM_ENVIRONMENT_BGMS[randomIndex];
           lastPlayedDarkroomBgmIndex = randomIndex;
         }

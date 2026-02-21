@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
   },
   backTouchable: {
     position: 'absolute',
-    top: s(16) + edgeInset + (Platform.OS === 'android' ? s(6) : 0),
+    top: Platform.OS === 'android' ? s(26) : s(16) + edgeInset,
     left: s(12) + edgeInset,
     zIndex: 30,
     borderWidth: 1,
@@ -71,7 +71,7 @@ export const styles = StyleSheet.create({
     paddingLeft: s(24),
     paddingTop: s(80),
     paddingRight: Platform.OS === 'android' ? s(8) : 0,
-    justifyContent: 'flex-start',
+    // justifyContentはScrollViewのcontentContainerStyleで指定
   },
   systemText: {
     color: '#00ff00',
@@ -121,7 +121,8 @@ export const styles = StyleSheet.create({
     color: '#00ff00',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    marginBottom: s(10),
+    marginBottom: s(6),
+    marginTop: s(0),
   },
   formCard: {
     width: '100%',
@@ -206,7 +207,7 @@ export const styles = StyleSheet.create({
     borderRadius: s(4),
     paddingHorizontal: s(12),
     paddingVertical: s(10),
-    marginTop: Platform.OS === 'android' ? s(4) : 0,
+    marginTop: 0,
   },
   debugAllBtn: {
     marginBottom: s(8),
@@ -215,7 +216,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: s(6),
+    marginBottom: s(2),
     borderWidth: 1,
     borderColor: '#2f2f2f',
     borderRadius: s(3),
