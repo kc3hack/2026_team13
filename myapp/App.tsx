@@ -18,7 +18,7 @@ import { getUserSettings, clearUserSettings } from './src/utils/storage';
 import { CameraScreen } from './src/screens/CameraScreen';
 
 type Screen = 'Loading' | 'Setup' | 'Settings' | 'ImagePicker' | 'Album' | 'Darkroom' | 'Camera';
-const ANDROID_GLOBAL_SCALE = 0.86;
+const ANDROID_GLOBAL_SCALE = 0.89;
 
 interface PendingDevelopPhoto {
   id: number;
@@ -222,6 +222,7 @@ export default function App() {
                 <DarkroomScreen
                   onBack={() => navigateTo('Camera')}
                   onGoSettings={() => navigateTo('Settings')}
+                  onGoAlbum={() => navigateTo('Album')}
                 />
               );
           default:

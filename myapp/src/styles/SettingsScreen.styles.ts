@@ -211,6 +211,36 @@ export const styles = StyleSheet.create({
   debugAllBtn: {
     marginBottom: s(8),
   },
+  debugToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: s(8),
+    borderWidth: 1,
+    borderColor: '#2f2f2f',
+    borderRadius: s(4),
+    paddingHorizontal: s(8),
+    paddingVertical: s(5),
+    backgroundColor: '#0f0f0f',
+  },
+  debugToggleLabel: {
+    fontSize: s(9),
+    color: '#7fb37f',
+    letterSpacing: 0.5,
+  },
+  debugToggleRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  debugToggleValue: {
+    fontSize: s(9),
+    color: '#cccccc',
+    marginRight: s(5),
+    letterSpacing: 0.5,
+  },
+  debugToggleSwitch: {
+    transform: [{ scale: Platform.OS === 'android' ? 0.72 : 0.78 }],
+  },
   debugButtonGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

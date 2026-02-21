@@ -8,13 +8,14 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  Switch,
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import {
   CourierPrime_400Regular,
   CourierPrime_700Bold,
 } from '@expo-google-fonts/courier-prime';
-import { getUserSettings, saveUserSettings } from '../utils/storage';
+import { getDarkroomUseNativeRipple, getUserSettings, saveUserSettings, setDarkroomUseNativeRipple } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { FILM_META, FILM_TYPES, RewardFilmType, UserSettings } from '../types';
 import { addFilm, getFilmInventory } from '../utils/sqlite';
@@ -35,6 +36,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
   const [gitEmail, setGitEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [debugFilmLoading, setDebugFilmLoading] = useState(false);
+  const [useNativeRipple, setUseNativeRipple] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -44,6 +46,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         setToken(settings.token);
         setGitEmail(settings.gitEmail || '');
       }
+
+      const nativeRipple = await getDarkroomUseNativeRipple();
+      setUseNativeRipple(nativeRipple);
     };
     loadSettings();
   }, []);
@@ -131,6 +136,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
 
             <Text style={[styles.sectionTitle, boldFont]}>DEBUG FILM TOOLS</Text>
             <View style={styles.debugCardLeft}>
+              <View style={styles.debugToggleRow}>
+                <Text style={[styles.debugToggleLabel, regularFont]}>WATER FX (DEBUG)</Text>
+                <View style={styles.debugToggleRight}>
+                  <Text style={[styles.debugToggleValue, regularFont]}>
+                    {useNativeRipple ? 'NATIVE' : 'JQUERY'}
+                  </Text>
+                  <Switch
+                    value={useNativeRipple}
+                    onValueChange={async (nextValue) => {
+                      setUseNativeRipple(nextValue);
+                      await setDarkroomUseNativeRipple(nextValue);
+                    }}
+                    thumbColor={useNativeRipple ? '#00ff00' : '#cccccc'}
+                    trackColor={{ false: '#333333', true: '#226622' }}
+                    style={styles.debugToggleSwitch}
+                  />
+                </View>
+              </View>
+
               <TouchableOpacity
                 style={[styles.saveBtn, styles.debugAllBtn, debugFilmLoading && styles.disabledBtn]}
                 onPress={handleAddAllDebugFilms}

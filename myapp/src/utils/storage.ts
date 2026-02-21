@@ -7,6 +7,7 @@ const KEYS = {
   LAST_CHECK_TIMESTAMP: 'LAST_CHECK_TIMESTAMP',
   BGM_VOLUME: 'BGM_VOLUME',
   MENU_BACKGROUND_MODE: 'MENU_BACKGROUND_MODE',
+  DARKROOM_NATIVE_RIPPLE: 'DARKROOM_NATIVE_RIPPLE',
 };
 
 export type MenuBackgroundMode = 'light' | 'dark';
@@ -54,4 +55,13 @@ export const getMenuBackgroundMode = async (): Promise<MenuBackgroundMode> => {
 
 export const setMenuBackgroundMode = async (mode: MenuBackgroundMode): Promise<void> => {
   await AsyncStorage.setItem(KEYS.MENU_BACKGROUND_MODE, mode);
+};
+
+export const getDarkroomUseNativeRipple = async (): Promise<boolean> => {
+  const val = await AsyncStorage.getItem(KEYS.DARKROOM_NATIVE_RIPPLE);
+  return val === '1';
+};
+
+export const setDarkroomUseNativeRipple = async (enabled: boolean): Promise<void> => {
+  await AsyncStorage.setItem(KEYS.DARKROOM_NATIVE_RIPPLE, enabled ? '1' : '0');
 };
