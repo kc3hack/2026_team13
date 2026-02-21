@@ -130,30 +130,41 @@ const drawDateStamp = (data: Uint8Array, width: number, height: number, date: Da
 };
 
 const yieldToMainThread = async () => new Promise<void>(resolve => setTimeout(resolve, 0));
-
-const applyUndevelopedDarkContrastFilter = async (data: Uint8Array, shouldCancel?: () => boolean): Promise<boolean> => {
-  const brightness = 0.80;
-  const contrast = 90;
-  let processed = 0;
-
-  for (let i = 0; i < data.length; i += 4) {
-    if (shouldCancel?.()) return false;
-
-    const r = data[i] * brightness;
-    const g = data[i + 1] * brightness;
-    const b = data[i + 2] * brightness;
-
-    const nr = (r - 128) * contrast + 128;
-    const ng = (g - 128) * contrast + 128;
-    const nb = (b - 128) * contrast + 128;
-
-    data[i] = clamp(nr);
-    data[i + 1] = clamp(ng);
-    data[i + 2] = clamp(nb);
-
-    if (++processed % YIELD_EVERY_PIXELS === 0) await yieldToMainThread();
+// 既に clamp がある前提
+const buildContrastLUT = (brightness: number, contrast: number): Uint8Array => {
+  const lut = new Uint8Array(256);
+  for (let x = 0; x < 256; x++) {
+    // brightness を先に掛ける（元の式に合わせる）
+    const scaled = x * brightness;
+    // 線形コントラスト式
+    const v = (scaled - 128) * contrast + 128;
+    // clamp と丸め
+    lut[x] = Math.max(0, Math.min(255, Math.round(v)));
   }
+  return lut;
+};
+const applyUndevelopedDarkContrastFilter = async (
+  data: Uint8Array,
+  shouldCancel?: () => boolean
+): Promise<boolean> => {
+  const brightness = 0.70;
+  const contrast = 70;
+  const lut = buildContrastLUT(brightness, contrast);
+  const len = data.length;
 
+  // キャンセルチェックと yield の頻度は環境に合わせて調整
+  let processed = 0;
+  for (let i = 0; i < len; i += 4) {
+    if ((processed & 0x3FF) === 0 && shouldCancel?.()) return false; // 1024ごとにチェック
+
+    data[i]     = lut[data[i]];
+    data[i + 1] = lut[data[i + 1]];
+    data[i + 2] = lut[data[i + 2]];
+    // alpha はそのまま
+
+    processed++;
+    if ((processed % (YIELD_EVERY_PIXELS / 4)) === 0) await yieldToMainThread();
+  }
   return true;
 };
 
