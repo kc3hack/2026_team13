@@ -316,6 +316,12 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 2,
   },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#050505',
+  },
   permissionText: {
     color: '#ccc',
     fontFamily: 'Courier',
@@ -323,5 +329,20 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 2,
     marginBottom: 16,
+  },
+  permissionButton: {
+    borderWidth: 2,
+    borderColor: '#666',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  permissionButtonText: {
+    color: '#fff',
+    fontFamily: 'Courier',
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
 });

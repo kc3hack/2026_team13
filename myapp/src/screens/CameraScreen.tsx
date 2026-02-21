@@ -104,7 +104,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
     })
   ).current;
 
-  
+  if (!permission) return <View />; 
+  if (!permission.granted) {
+     return ( 
+     <SafeAreaView style={styles.container}>
+        <View style={styles.permissionContainer}>
+          <Text style={styles.permissionText}>カメラの権限が必要です</Text>
+          <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+            <Text style={styles.permissionButtonText}>権限を許可</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView> ); }
+
 
   const handleZoom = (increment: boolean) => {
     setZoom((prev) => Math.max(0, Math.min(increment ? prev + 0.1 : prev - 0.1, 1)));
@@ -117,13 +128,6 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   };
 
   const takePicture = async () => {
-    if (!permission?.granted) {
-      Alert.alert('カメラの権限が必要です', 'カメラを使用するには権限を許可してください', [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: '設定を開く', onPress: requestPermission },
-      ]);
-      return;
-    }
 
     if (!cameraRef.current || isShooting || !canShoot || !selectedFilm || !activeFilmId) return;
 

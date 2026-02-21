@@ -1,5 +1,5 @@
 // src/screens/SetupScreen.tsx
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,16 @@ import {
   Platform,
   Linking,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { saveUserSettings } from '../utils/storage';
 import { verifyToken } from '../api/githubAPI';
 import { UserSettings } from '../types';
-import { PARALLAX_MAX_SCROLL, PARALLAX_OFFSET, styles } from '../styles/SetupScreen.styles';
+import { PARALLAX_MAX_SCROLL, PARALLAX_OFFSET, getStyles } from '../styles/SetupScreen.styles';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 // Asset imports
-const BG_IMAGE = require('../../assets/images/KC3_Devit_background.png');
+//const BG_IMAGE = require('../../assets/images/KC3_Devit_background.png');
 const LOGO_IMAGE = require('../../assets/images/KC3_Devit_logo.png');
 const BUTTON_IMAGE = require('../../assets/images/KC3_Devit_button.png');
 const FILMS_IMAGE = require('../../assets/images/KC3_Devit_films_long.png');
@@ -29,6 +31,27 @@ interface SetupScreenProps {
 }
 
 export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
+  const { width, height } = useWindowDimensions();
+  const styles = getStyles(width, height);
+  const [isOrientationReady, setIsOrientationReady] = useState(false);
+
+  useEffect(() => {
+    async function lockPortrait() {
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP
+      );
+      // 向きロック完了後、レンダリングを許可
+      setTimeout(() => setIsOrientationReady(true), 100);
+    }
+    lockPortrait();
+
+    return () => {
+      // 他の画面のために横向きに戻す（unlockではなくlandscapeにlock）
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    };
+  }, []);
+
+
   const [username, setUsername] = useState('');
   const [token, setToken] = useState('');
   const [gitEmail, setGitEmail] = useState('');
@@ -74,14 +97,21 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     };
 
     await saveUserSettings(settings);
+    // 完了前に横向きに戻す
+    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
     onComplete();
   };
+
+  // 向きロック完了まで空の画面を表示
+  if (!isOrientationReady) {
+    return <View style={styles.container} />;
+  }
 
   return (
     <View style={styles.container}>
       {/* Parallax background */}
       <Animated.Image
-        source={BG_IMAGE}
+        //source={BG_IMAGE}
         style={[
           styles.backgroundImage,
           { transform: [{ translateY: bgTranslateY }] },
