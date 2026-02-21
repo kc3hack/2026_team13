@@ -62,6 +62,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [isResultModalVisible, setIsResultModalVisible] = useState(false);
   const [resultBeforePhotoUri, setResultBeforePhotoUri] = useState<string | null>(null);
   const [resultAfterPhotoUri, setResultAfterPhotoUri] = useState<string | null>(null);
+  const [resultAspectRatio, setResultAspectRatio] = useState(3 / 4);
   const [useNativeRipple, setUseNativeRipple] = useState(false);
   const [rightPanelDim, setRightPanelDim] = useState({ width: 0, height: 0 });
   
@@ -444,6 +445,25 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     }).start();
   }, [isResultModalVisible, resultAfterPhotoUri, revealProgress]);
 
+  useEffect(() => {
+    if (!resultAfterPhotoUri) {
+      setResultAspectRatio(3 / 4);
+      return;
+    }
+
+    Image.getSize(
+      resultAfterPhotoUri,
+      (width, height) => {
+        if (width > 0 && height > 0) {
+          setResultAspectRatio(width / height);
+        } else {
+          setResultAspectRatio(3 / 4);
+        }
+      },
+      () => setResultAspectRatio(3 / 4),
+    );
+  }, [resultAfterPhotoUri]);
+
   const handleStartNextDeveloping = useCallback(() => {
     if (isFinishingSession) return;
 
@@ -673,8 +693,8 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
               <View style={darkroomStyles.resultColumn}>
                 <Text style={darkroomStyles.resultColumnTitle}>BEFORE</Text>
                 {!!resultBeforePhotoUri && (
-                  <View style={darkroomStyles.resultImageFrame}>
-                    <Image source={{ uri: resultBeforePhotoUri }} style={darkroomStyles.resultImage} />
+                  <View style={[darkroomStyles.resultImageFrame, { aspectRatio: resultAspectRatio }]}>
+                    <Image source={{ uri: resultBeforePhotoUri }} resizeMode="contain" style={darkroomStyles.resultImage} />
                   </View>
                 )}
               </View>
@@ -686,10 +706,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
               <View style={darkroomStyles.resultColumn}>
                 <Text style={darkroomStyles.resultColumnTitle}>AFTER</Text>
                 {!!resultAfterPhotoUri && (
-                  <View style={darkroomStyles.resultImageFrame}>
-                    <Image source={{ uri: resultAfterPhotoUri }} style={darkroomStyles.resultImage} />
+                  <View style={[darkroomStyles.resultImageFrame, { aspectRatio: resultAspectRatio }]}>
+                    <Image source={{ uri: resultAfterPhotoUri }} resizeMode="contain" style={darkroomStyles.resultImage} />
                   <Animated.Image
                     source={{ uri: resultAfterPhotoUri }}
+                    resizeMode="contain"
                     blurRadius={10}
                     style={[
                       darkroomStyles.resultImageOverlay,

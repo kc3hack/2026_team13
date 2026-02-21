@@ -263,6 +263,7 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
         const canvas = document.getElementById('ripple-canvas');
         const ctx = canvas.getContext('2d');
         const ripples = [];
+        const ambientParticles = [];
 
         const state = {
           t: 0,
@@ -274,6 +275,19 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
 
         const img = new Image();
         let hasPhoto = false;
+
+        const initAmbientParticles = () => {
+          ambientParticles.length = 0;
+          const count = 90;
+          for (let i = 0; i < count; i += 1) {
+            ambientParticles.push({
+              x: Math.random(),
+              y: Math.random(),
+              r: Math.random() * 1.4 + 0.2,
+              phase: Math.random() * Math.PI * 2,
+            });
+          }
+        };
 
         const resize = () => {
           const dpr = window.devicePixelRatio || 1;
@@ -288,7 +302,7 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
           state.cy = state.h / 2;
         };
 
-        const pushRipple = (x, y, amp = 8, speed = 2.0) => {
+        const pushRipple = (x, y, amp = 8, speed = 1.5) => {
           ripples.push({ x, y, r: 0, a: 0.35, amp, speed });
         };
 
@@ -300,10 +314,11 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
           ctx.fillRect(0, 0, state.w, state.h);
 
           ctx.globalAlpha = 0.14;
-          for (let i = 0; i < 90; i += 1) {
-            const px = Math.random() * state.w;
-            const py = Math.random() * state.h;
-            const pr = Math.random() * 1.4 + 0.2;
+          for (let i = 0; i < ambientParticles.length; i += 1) {
+            const particle = ambientParticles[i];
+            const px = particle.x * state.w + Math.sin((state.t * 0.0018) + particle.phase) * 0.5;
+            const py = particle.y * state.h + Math.cos((state.t * 0.0015) + particle.phase) * 0.5;
+            const pr = particle.r;
             ctx.beginPath();
             ctx.fillStyle = '#6cae75';
             ctx.arc(px, py, pr, 0, Math.PI * 2);
@@ -409,7 +424,7 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
           const rect = canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
-          pushRipple(x, y, 9, 2.2);
+          pushRipple(x, y, 9, 1.7);
 
           if (window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'waterTouch' }));
@@ -417,12 +432,13 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
         };
 
         resize();
+        initAmbientParticles();
         window.addEventListener('resize', resize);
         canvas.addEventListener('pointerdown', onPointerDown, { passive: true });
-        pushRipple(state.cx, state.cy, 10, 2.1);
+        pushRipple(state.cx, state.cy, 10, 1.6);
         setInterval(() => {
-          pushRipple(state.cx, state.cy, 8, 1.8);
-        }, 1800);
+          pushRipple(state.cx, state.cy, 8, 1.4);
+        }, 2600);
 
         if (imageData) {
           img.onload = () => {

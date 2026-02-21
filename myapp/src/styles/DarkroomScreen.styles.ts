@@ -76,6 +76,7 @@ export const styles = StyleSheet.create({
   resultColumn: {
     flex: 1,
     alignSelf: 'stretch',
+    alignItems: 'center',
   },
   resultColumnTitle: {
     color: '#88c58f',
@@ -96,22 +97,20 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
   },
   resultImageFrame: {
-    flex: 1,
+    width: '100%',
+    maxHeight: '92%',
     backgroundColor: '#000',
     borderWidth: 1,
     borderColor: 'rgba(108, 174, 117, 0.2)',
     overflow: 'hidden',
   },
   resultImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
+    ...StyleSheet.absoluteFillObject,
+    resizeMode: 'cover',
   },
   resultImageOverlay: {
     ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
+    resizeMode: 'cover',
   },
   resultFooter: {
     paddingHorizontal: s(14),
