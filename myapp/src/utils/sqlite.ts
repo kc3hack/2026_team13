@@ -7,6 +7,15 @@ export interface PhotoWithFilmName extends PhotoRecord {
   film_name: string | null;
 }
 
+export interface UndevelopedAlbumReplacementRow {
+  photoId: number;
+  uri: string;
+  filmId: number;
+  status: 'undeveloped' | 'developing';
+  createdAt?: string | null;
+  isProcessed?: boolean;
+}
+
 // v11+ は openDatabaseAsync/openDatabaseSync が提供される
 let dbPromise: Promise<SQLiteDatabase> | null = null;
 let isDatabaseInitialized = false;
@@ -94,6 +103,19 @@ const initializeDatabaseInternal = async (): Promise<void> => {
   );
 
   await db.runAsync(
+    `CREATE TABLE IF NOT EXISTS undeveloped_album_photos (
+      photo_id INTEGER PRIMARY KEY,
+      uri TEXT NOT NULL,
+      film_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'undeveloped',
+      is_processed INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (photo_id) REFERENCES photos (id) ON DELETE CASCADE,
+      FOREIGN KEY (film_id) REFERENCES films (id)
+    );`
+  );
+
+  await db.runAsync(
     `CREATE TABLE IF NOT EXISTS film_inventory (
       type TEXT PRIMARY KEY,
       count INTEGER NOT NULL DEFAULT 0
@@ -125,6 +147,36 @@ const initializeDatabaseInternal = async (): Promise<void> => {
 
   await db.runAsync("UPDATE photos SET created_at = datetime('now', 'localtime') WHERE created_at IS NULL OR created_at = ''; ");
   await db.runAsync('UPDATE photos SET film_id = 11 WHERE film_id IS NULL;');
+
+  const albumColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(undeveloped_album_photos);');
+  const hasIsProcessed = albumColumns.some((column) => column.name === 'is_processed');
+  if (!hasIsProcessed) {
+    await db.runAsync('ALTER TABLE undeveloped_album_photos ADD COLUMN is_processed INTEGER NOT NULL DEFAULT 0;');
+  }
+
+  await db.runAsync(
+    `INSERT INTO undeveloped_album_photos (photo_id, uri, film_id, status, created_at)
+    SELECT
+      p.id,
+      p.uri,
+      COALESCE(p.film_id, 11),
+      p.status,
+      COALESCE(p.created_at, datetime('now', 'localtime'))
+    FROM photos p
+    WHERE p.status IN ('undeveloped', 'developing')
+    ON CONFLICT(photo_id) DO UPDATE SET
+      uri = excluded.uri,
+      film_id = excluded.film_id,
+      status = excluded.status,
+      created_at = excluded.created_at;`
+  );
+
+  await db.runAsync(
+    `DELETE FROM undeveloped_album_photos
+    WHERE photo_id IN (
+      SELECT id FROM photos WHERE status = 'developed'
+    );`
+  );
 
   await ensureFilmsSeeded(db);
 
@@ -172,7 +224,49 @@ export const addPhoto = async (
     "INSERT INTO photos (uri, film_id, status, created_at, developing_started_at) VALUES (?, ?, ?, datetime('now', 'localtime'), NULL);",
     [uri, filmId, status],
   ));
+
+  if (status !== 'developed') {
+    await upsertUndevelopedAlbumByPhotoIds([result.lastInsertRowId]);
+  }
+
   return result.lastInsertRowId;
+};
+
+export const getUndevelopedAlbumPhotos = async (): Promise<PhotoWithFilmName[]> => {
+  return withDatabaseRetry((db) => db.getAllAsync<PhotoWithFilmName>(
+    `SELECT
+      u.photo_id AS id,
+      u.uri,
+      COALESCE(u.film_id, 11) AS film_id,
+      u.status,
+      NULL AS developing_started_at,
+      COALESCE(u.created_at, datetime('now', 'localtime')) AS created_at,
+      f.name AS film_name
+    FROM undeveloped_album_photos u
+    LEFT JOIN films f ON u.film_id = f.id
+    ORDER BY datetime(u.created_at) DESC, u.photo_id DESC;`,
+  ));
+};
+
+export const replaceUndevelopedAlbumPhotos = async (rows: UndevelopedAlbumReplacementRow[]): Promise<void> => {
+  await withDatabaseRetry(async (db) => {
+    await db.runAsync('DELETE FROM undeveloped_album_photos;');
+
+    for (const row of rows) {
+      await db.runAsync(
+        `INSERT INTO undeveloped_album_photos (photo_id, uri, film_id, status, is_processed, created_at)
+          VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')));`,
+        [row.photoId, row.uri, row.filmId, row.status, row.isProcessed ? 1 : 0, row.createdAt ?? null],
+      );
+    }
+  });
+};
+
+export const countUnprocessedUndevelopedAlbumPhotos = async (): Promise<number> => {
+  const row = await withDatabaseRetry((db) => db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM undeveloped_album_photos WHERE is_processed = 0;",
+  ));
+  return row?.count ?? 0;
 };
 
 export const getPhotosByStatus = async (status: PhotoStatus): Promise<PhotoWithFilmName[]> => {
@@ -198,6 +292,8 @@ export const updatePhotoStatus = async (id: number, status: PhotoStatus): Promis
     'UPDATE photos SET status = ?, developing_started_at = CASE WHEN ? = \'developing\' THEN datetime(\'now\', \'localtime\') ELSE NULL END WHERE id = ?;',
     [status, status, id],
   ).then(() => undefined));
+
+  await syncUndevelopedAlbumByPhotoStatus(id, status);
 };
 
 const getIdsWithDevelopingCapacity = async (ids: number[], capacity: number): Promise<number[]> => {
@@ -210,6 +306,56 @@ const getIdsWithDevelopingCapacity = async (ids: number[], capacity: number): Pr
 };
 
 const buildInPlaceholders = (count: number): string => new Array(count).fill('?').join(', ');
+
+const upsertUndevelopedAlbumByPhotoIds = async (ids: number[]): Promise<void> => {
+  if (ids.length === 0) {
+    return;
+  }
+
+  const placeholders = buildInPlaceholders(ids.length);
+  await withDatabaseRetry((db) => db.runAsync(
+    `INSERT INTO undeveloped_album_photos (photo_id, uri, film_id, status, is_processed, created_at)
+    SELECT
+      p.id,
+      p.uri,
+      COALESCE(p.film_id, 11),
+      p.status,
+      0,
+      COALESCE(p.created_at, datetime('now', 'localtime'))
+    FROM photos p
+    WHERE p.id IN (${placeholders})
+    AND p.status IN ('undeveloped', 'developing')
+    ON CONFLICT(photo_id) DO UPDATE SET
+      uri = excluded.uri,
+      film_id = excluded.film_id,
+      status = excluded.status,
+      is_processed = 0,
+      created_at = excluded.created_at;`,
+    ids,
+  ).then(() => undefined));
+};
+
+const deleteUndevelopedAlbumByPhotoIds = async (ids: number[]): Promise<void> => {
+  if (ids.length === 0) {
+    return;
+  }
+
+  const placeholders = buildInPlaceholders(ids.length);
+  await withDatabaseRetry((db) => db.runAsync(
+    `DELETE FROM undeveloped_album_photos
+      WHERE photo_id IN (${placeholders});`,
+    ids,
+  ).then(() => undefined));
+};
+
+const syncUndevelopedAlbumByPhotoStatus = async (id: number, status: PhotoStatus): Promise<void> => {
+  if (status === 'developed') {
+    await deleteUndevelopedAlbumByPhotoIds([id]);
+    return;
+  }
+
+  await upsertUndevelopedAlbumByPhotoIds([id]);
+};
 
 export const countDevelopingPhotos = async (): Promise<number> => {
   const row = await withDatabaseRetry((db) => db.getFirstAsync<{ count: number }>(
@@ -263,6 +409,8 @@ export const startDeveloping = async (ids: number[]): Promise<number[]> => {
     startIds,
   ).then(() => undefined));
 
+  await upsertUndevelopedAlbumByPhotoIds(startIds);
+
   return startIds;
 };
 
@@ -300,6 +448,8 @@ export const completeDevelopingSession = async (ids: number[]): Promise<void> =>
       AND status = 'developing';`,
     ids,
   ).then(() => undefined));
+
+  await deleteUndevelopedAlbumByPhotoIds(ids);
 };
 
 export const failDevelopingSession = async (ids: number[]): Promise<void> => {
@@ -315,10 +465,15 @@ export const failDevelopingSession = async (ids: number[]): Promise<void> => {
       AND status = 'developing';`,
     ids,
   ).then(() => undefined));
+
+  await upsertUndevelopedAlbumByPhotoIds(ids);
 };
 
 export const updatePhotoUri = async (id: number, uri: string): Promise<void> => {
-  await withDatabaseRetry((db) => db.runAsync('UPDATE photos SET uri = ? WHERE id = ?;', [uri, id]).then(() => undefined));
+  await withDatabaseRetry(async (db) => {
+    await db.runAsync('UPDATE photos SET uri = ? WHERE id = ?;', [uri, id]);
+    await db.runAsync('UPDATE undeveloped_album_photos SET uri = ?, is_processed = 0 WHERE photo_id = ?;', [uri, id]);
+  });
 };
 
 export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmType | null> => {
@@ -377,7 +532,10 @@ export const fetchPhotos = async (): Promise<Photo[]> => {
 
 // レコード削除
 export const deletePhoto = async (id: number): Promise<void> => {
-  await withDatabaseRetry((db) => db.runAsync('DELETE FROM photos WHERE id = ?;', [id]).then(() => undefined));
+  await withDatabaseRetry(async (db) => {
+    await db.runAsync('DELETE FROM undeveloped_album_photos WHERE photo_id = ?;', [id]);
+    await db.runAsync('DELETE FROM photos WHERE id = ?;', [id]);
+  });
 };
 
 // ===== Film Inventory =====

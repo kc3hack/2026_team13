@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
   FlatList,
   Image,
   Alert,
@@ -22,6 +23,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { deletePhoto, getPhotosByStatus, PhotoWithFilmName, getFilmInventory } from '../utils/sqlite';
+import { getUndevelopedPhotosFromDirectory, hasUnprocessedUndevelopedPhotos, rebuildUndevelopedAlbumWithProcessing } from '../utils/undevelopedAlbumProcessor';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 import { styles } from '../styles/AlbumScreen.styles';
@@ -77,6 +79,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
+  const [isProcessingUndeveloped, setIsProcessingUndeveloped] = useState(false);
   
   // ★修正: 初期ステートを3種類のみに限定
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
@@ -209,7 +212,23 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   }, [totalPages]);
 
   const load = useCallback(async (status: PhotoTab) => {
-    const list = await getPhotosByStatus(status);
+    let list: PhotoWithFilmName[] = [];
+
+    if (status === 'undeveloped') {
+      const shouldProcess = await hasUnprocessedUndevelopedPhotos();
+      if (shouldProcess) {
+        setIsProcessingUndeveloped(true);
+        try {
+          await rebuildUndevelopedAlbumWithProcessing();
+        } finally {
+          setIsProcessingUndeveloped(false);
+        }
+      }
+      list = await getUndevelopedPhotosFromDirectory();
+    } else {
+      list = await getPhotosByStatus(status);
+    }
+
     setPhotos(list);
   }, []);
 
@@ -685,6 +704,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
         </View>
 
         <View style={styles.rightPanel}>
+          {isProcessingUndeveloped && (
+            <View style={styles.processingOverlay} pointerEvents="none">
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.processingOverlayText}>未現像プレビューを生成中...</Text>
+            </View>
+          )}
           <View style={styles.gridContainer}>
             {Array.from({ length: 6 }).map((_, idx) => {
               const item = sortedPhotos[displayStartIndex + idx];

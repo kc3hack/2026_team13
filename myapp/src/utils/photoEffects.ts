@@ -131,6 +131,32 @@ const drawDateStamp = (data: Uint8Array, width: number, height: number, date: Da
 
 const yieldToMainThread = async () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
+const applyUndevelopedDarkContrastFilter = async (data: Uint8Array, shouldCancel?: () => boolean): Promise<boolean> => {
+  const brightness = 0.80;
+  const contrast = 90;
+  let processed = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (shouldCancel?.()) return false;
+
+    const r = data[i] * brightness;
+    const g = data[i + 1] * brightness;
+    const b = data[i + 2] * brightness;
+
+    const nr = (r - 128) * contrast + 128;
+    const ng = (g - 128) * contrast + 128;
+    const nb = (b - 128) * contrast + 128;
+
+    data[i] = clamp(nr);
+    data[i + 1] = clamp(ng);
+    data[i + 2] = clamp(nb);
+
+    if (++processed % YIELD_EVERY_PIXELS === 0) await yieldToMainThread();
+  }
+
+  return true;
+};
+
 // 全フィルター共通ノイズ
 const applyGrainNoise = async (data: Uint8Array, width: number, height: number) => {
   const noiseStrength = 12;
@@ -285,4 +311,78 @@ export const applyFilmEffectToPhoto = async (
     console.error('film effect failed:', error);
     return uri;
   }
+};
+
+export const applyUndevelopedPreviewEffect = async (
+  uri: string,
+  options?: { shouldCancel?: () => boolean; outputFileName?: string; },
+): Promise<string> => {
+  try {
+    if (options?.shouldCancel?.()) return uri;
+
+    const actions: ImageManipulator.Action[] = [{ resize: { width: MAX_PROCESS_WIDTH } }];
+    const normalized = await ImageManipulator.manipulateAsync(uri, actions, {
+      format: ImageManipulator.SaveFormat.JPEG,
+      compress: 0.95,
+      base64: true,
+    });
+    if (!normalized.base64 || options?.shouldCancel?.()) return uri;
+
+    const base64 = normalized.base64.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedBase64 = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+    let decoded = jpeg.decode(toByteArray(paddedBase64), { useTArray: true });
+    if (!decoded?.data || options?.shouldCancel?.()) return uri;
+
+    let { data, width, height } = decoded;
+
+    if (width < height) {
+      const rotatedData = new Uint8Array(data.length);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const oldIdx = (y * width + x) * 4;
+          const newX = y;
+          const newY = width - 1 - x;
+          const newIdx = (newY * height + newX) * 4;
+
+          rotatedData[newIdx] = data[oldIdx];
+          rotatedData[newIdx + 1] = data[oldIdx + 1];
+          rotatedData[newIdx + 2] = data[oldIdx + 2];
+          rotatedData[newIdx + 3] = data[oldIdx + 3];
+        }
+      }
+      data = rotatedData;
+      [width, height] = [height, width];
+    }
+
+    const processed = await applyUndevelopedDarkContrastFilter(data, options?.shouldCancel);
+    if (!processed || options?.shouldCancel?.()) return uri;
+
+    const encoded = jpeg.encode({ data, width, height }, JPEG_QUALITY);
+    if (options?.shouldCancel?.()) return uri;
+
+    const outputBase64 = fromByteArray(encoded.data);
+    const basePath = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+    if (!basePath) return uri;
+    const targetDir = `${basePath}undeveloped_preview/`;
+    await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
+    const outputFileName = options?.outputFileName ?? `${Date.now()}_undeveloped.jpg`;
+    const outputUri = `${targetDir}${outputFileName}`;
+    await FileSystem.writeAsStringAsync(outputUri, outputBase64, { encoding: 'base64' });
+
+    return outputUri;
+  } catch (error) {
+    console.error('undeveloped preview effect failed:', error);
+    return uri;
+  }
+};
+
+export const getUndevelopedPreviewUriByPhotoId = async (photoId: number): Promise<string | null> => {
+  const basePath = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+  if (!basePath) {
+    return null;
+  }
+
+  const candidate = `${basePath}undeveloped_preview/${photoId}_undeveloped.jpg`;
+  const info = await FileSystem.getInfoAsync(candidate);
+  return info.exists ? candidate : null;
 };

@@ -197,6 +197,7 @@ export const styles = StyleSheet.create({
   rightPanel: {
     flex: 0.58,
     paddingTop: 50,
+    position: 'relative',
   },
   list: {
     paddingHorizontal: 12,
@@ -446,6 +447,19 @@ detailFooterText: {
     aspectRatio: 1,
     borderRadius: 8,
     backgroundColor: '#1f1f1f',
+  },
+  processingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 12,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  processingOverlayText: {
+    color: '#fff',
+    fontFamily: 'cinecaption226',
+    fontSize: 14,
   },
 
   /* ── Detail photo modal (fallback overlay) ── */
