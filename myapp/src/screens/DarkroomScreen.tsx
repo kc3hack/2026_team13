@@ -33,6 +33,9 @@ const DARKROOM_ENVIRONMENT_BGMS: number[] = [
 // ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
+// ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
+const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
+
 interface DevelopingPhoto {
   id: number;
   uri: string;
