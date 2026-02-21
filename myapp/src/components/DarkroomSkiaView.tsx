@@ -7,9 +7,10 @@ interface DarkroomSkiaViewProps {
   photoUri: string;
   width: number;
   height: number;
+  onWaterTouch?: () => void;
 }
 
-export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, width, height }) => {
+export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, width, height, onWaterTouch }) => {
   const [base64Image, setBase64Image] = useState<string | null>(null);
 
   // 1. ローカルの写真をBase64文字列に変換してHTMLに渡せるようにする
@@ -156,6 +157,27 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
               perturbance: 0.04,
             });
 
+            const bindTouchRipple = () => {
+              const raw = document.getElementById('ripple-container');
+              if (!raw) return;
+
+              const handleTouch = (event) => {
+                const rect = raw.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                $container.ripples('drop', x, y, 22, 0.05);
+
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'waterTouch' }));
+                }
+              };
+
+              raw.addEventListener('pointerdown', handleTouch, { passive: true });
+            };
+
+            bindTouchRipple();
+
             // 最初にチャプッと自動で波紋を起こす
             setTimeout(() => {
               $container.ripples('drop', w / 2, h / 2, 25, 0.05);
@@ -184,6 +206,18 @@ export const DarkroomSkiaView: React.FC<DarkroomSkiaViewProps> = ({ photoUri, wi
         originWhitelist={['*']}
         source={{ html: htmlContent }}
         style={{ flex: 1, backgroundColor: '#000' }}
+        onMessage={(event) => {
+          if (!onWaterTouch) return;
+
+          try {
+            const payload = JSON.parse(event.nativeEvent.data);
+            if (payload?.type === 'waterTouch') {
+              onWaterTouch();
+            }
+          } catch {
+            // no-op
+          }
+        }}
         scrollEnabled={false} // スクロール禁止
         bounces={false}       // バウンス禁止
         showsHorizontalScrollIndicator={false}
