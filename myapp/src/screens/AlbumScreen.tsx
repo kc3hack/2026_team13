@@ -856,7 +856,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                 <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
                 {/* ★修正: メニュー内のフィルム名表示もmonoをCinemaと表示する */}
                 <Text style={styles.menuInfoValue}>
-                  {menuTargetPhoto?.film_name === 'mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
+                  {menuTargetPhoto?.film_name === 'Mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
                 </Text>
               </View>
             </View>
@@ -891,7 +891,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
 
                 <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
                 <Text style={styles.menuInfoValue}>
-                  {menuTargetPhoto?.film_name === 'mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
+                  {menuTargetPhoto?.film_name === 'Mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
                 </Text>
               </View>
             </View>
