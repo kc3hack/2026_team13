@@ -46,7 +46,7 @@ export const styles = StyleSheet.create({
     zIndex: 100,
   },
   resultModalCard: {
-    width: '96%',
+    width: '88%',
     height: '70%',
     backgroundColor: '#040804',
     borderWidth: 1,
