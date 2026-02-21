@@ -40,7 +40,6 @@ const DARKROOM_THUNDER_BGM_INDEX = 5;
 const DARKROOM_THUNDER_WEIGHT = 1;
 const DARKROOM_NORMAL_WEIGHT = 3;
 
-// ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
 interface DevelopingPhoto {
@@ -68,16 +67,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [resultAspectRatio, setResultAspectRatio] = useState(3 / 4);
   const [useNativeRipple, setUseNativeRipple] = useState(false);
   const [rightPanelDim, setRightPanelDim] = useState({ width: 0, height: 0 });
-  
-  // ★修正: 初期ステートを3種類のみに限定
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
-    mono: 0, 
-    vivid: 0, 
-    retro: 0 
-  } as FilmInventory);
-  
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 } as FilmInventory);
   const [developingCount, setDevelopingCount] = useState(0);
   const [totalPendingCount, setTotalPendingCount] = useState(0);
+
+  // ★追加: 事前処理した画像のURIを保持するステート
+  const [preProcessedUri, setPreProcessedUri] = useState<string | null>(null);
 
   const waterSoundRef = useRef<Audio.Sound | null>(null);
   const selectedDarkroomBgmRef = useRef<number | null>(null);
@@ -150,7 +145,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       clearTimeout(waterTouchStopTimerRef.current);
       waterTouchStopTimerRef.current = null;
     }
-
     const currentSound = waterTouchSoundRef.current;
     if (!currentSound) return;
     waterTouchSoundRef.current = null;
@@ -160,9 +154,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
   const playWaterTouchSound = useCallback(async () => {
     const now = Date.now();
-    if (now - lastWaterTouchAtRef.current < 100) {
-      return;
-    }
+    if (now - lastWaterTouchAtRef.current < 100) return;
     lastWaterTouchAtRef.current = now;
 
     try {
@@ -173,12 +165,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         );
         waterTouchSoundRef.current = sound;
       }
-
       if (waterTouchStopTimerRef.current) {
         clearTimeout(waterTouchStopTimerRef.current);
         waterTouchStopTimerRef.current = null;
       }
-
       await waterTouchSoundRef.current.setPositionAsync(0);
       await waterTouchSoundRef.current.playAsync();
 
@@ -186,9 +176,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         const currentSound = waterTouchSoundRef.current;
         if (!currentSound) return;
         void (async () => {
-          try {
-            await currentSound.stopAsync();
-          } catch {}
+          try { await currentSound.stopAsync(); } catch {}
         })();
         waterTouchStopTimerRef.current = null;
       }, 5000);
@@ -197,50 +185,46 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     }
   }, []);
 
-  const runPhotoEffects = useCallback(async (rows: DevelopingPhoto[]) => {
-    const updatedRows = rows.map((row) => ({ ...row }));
+  // ★追加: 事前処理を行う関数。タイマーの裏でこっそり走らせてキャッシュする。
+  const preProcessPhoto = useCallback(async (photo: DevelopingPhoto) => {
     cancelProcessingRef.current = false;
-    for (const targetPhoto of updatedRows) {
-      if (cancelProcessingRef.current) return updatedRows;
-      try {
-        const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
-        
-        // ★修正: 使わなくなった使い捨て・ソフトの条件式を削除
-        const effectType =
-          resolvedEffectType
-          ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
-            ? 'mono'
-            : targetPhoto.filmId === 2 || targetPhoto.filmId === 12
-              ? 'vivid'
-              : targetPhoto.filmId === 3 || targetPhoto.filmId === 13
-                ? 'retro'
-                : 'mono');
+    try {
+      const resolvedEffectType = await getFilmEffectTypeById(photo.filmId);
+      const effectType = resolvedEffectType ?? (
+        photo.filmId === 1 || photo.filmId === 11 ? 'mono' :
+        photo.filmId === 2 || photo.filmId === 12 ? 'vivid' :
+        photo.filmId === 3 || photo.filmId === 13 ? 'retro' : 'mono'
+      );
 
-        const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
-          shouldCancel: () => cancelProcessingRef.current,
-        });
-        if (cancelProcessingRef.current) return updatedRows;
-        if (processedUri !== targetPhoto.uri) {
-          targetPhoto.uri = processedUri;
-          await updatePhotoUri(targetPhoto.id, processedUri);
-          setDevelopingPhotos((prev) => prev.map((item) => (item.id === targetPhoto.id ? { ...item, uri: processedUri } : item)));
-        }
-      } catch (error) {
-        console.log('failed to process photo in darkroom', error);
+      const processedUri = await applyFilmEffectToPhoto(photo.uri, effectType, {
+        shouldCancel: () => cancelProcessingRef.current,
+      });
+      
+      if (!cancelProcessingRef.current && processedUri !== photo.uri) {
+        setPreProcessedUri(processedUri);
       }
+    } catch (error) {
+      console.log('failed to pre-process photo', error);
     }
-    return updatedRows;
   }, []);
 
-  const finalizeSession = useCallback(async (rows: DevelopingPhoto[]) => {
-    if (finalizedSessionRef.current || rows.length === 0) return;
+  // ★修正: 重い処理は preProcessPhoto に任せ、ここはDB更新と画面遷移だけに軽量化。
+  const finalizeSession = useCallback(async (photo: DevelopingPhoto) => {
+    if (finalizedSessionRef.current) return;
     finalizedSessionRef.current = true;
     setIsFinishingSession(true);
 
     try {
-      const beforeUri = rows[0]?.uri ?? null;
-      const processedRows = await runPhotoEffects(rows);
-      await completeDevelopingSession(rows.map((item) => item.id));
+      const beforeUri = photo.uri;
+      // 事前処理が終わっていればそれを使う。終わってなければ仕方ないのでフォールバックで元のURI。
+      const finalUri = preProcessedUri ?? beforeUri;
+
+      // DBを更新
+      if (finalUri !== beforeUri) {
+        await updatePhotoUri(photo.id, finalUri);
+      }
+      await completeDevelopingSession([photo.id]);
+      
       const nextUndeveloped = await getUndevelopedPhotosOldest(1);
 
       if (nextUndeveloped.length > 0) {
@@ -265,17 +249,19 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       );
       setIsSessionCompleted(true);
       setResultBeforePhotoUri(beforeUri);
-      setResultAfterPhotoUri(processedRows[0]?.uri ?? beforeUri);
+      setResultAfterPhotoUri(finalUri);
       setIsResultModalVisible(true);
-      if (activePhoto) delete globalDarkroomCache[activePhoto.id];
+      if (photo) delete globalDarkroomCache[photo.id];
       await refreshPhotoCounts();
     } catch (error) {
       console.log('failed to finalize developing session', error);
     } finally {
       setIsFinishingSession(false);
       await stopAndUnloadWaterSound();
+      setPreProcessedUri(null); // キャッシュクリア
     }
-  }, [runPhotoEffects, stopAndUnloadWaterSound, activePhoto, refreshPhotoCounts]);
+  }, [preProcessedUri, stopAndUnloadWaterSound, refreshPhotoCounts]);
+
 
   useEffect(() => {
     let isActive = true;
@@ -283,17 +269,21 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     setIsSessionStarted(false);
     setIsSessionCompleted(false);
     finalizedSessionRef.current = false;
+    setPreProcessedUri(null);
 
     const loadSession = async () => {
       try {
         await refreshPhotoCounts();
-
         const developing = await getDevelopingPhotos();
         if (!isActive) return;
 
         if (developing.length > 0) {
-          setDevelopingPhotos([{ id: developing[0].id, uri: developing[0].uri, filmId: developing[0].film_id }]);
+          const photo = { id: developing[0].id, uri: developing[0].uri, filmId: developing[0].film_id };
+          setDevelopingPhotos([photo]);
           setIsSessionStarted(true);
+          
+          // ★追加: アプリを開いた時に現像中なら、裏で事前処理をスタート
+          void preProcessPhoto(photo);
           
           const cached = globalDarkroomCache[developing[0].id];
           if (cached) {
@@ -325,7 +315,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     };
     void loadSession();
     return () => { isActive = false; };
-  }, [refreshPhotoCounts]);
+  }, [refreshPhotoCounts, preProcessPhoto]);
 
   useEffect(() => {
     if (!isSessionStarted || isSessionCompleted || isPaused) return;
@@ -342,10 +332,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   }, [isSessionStarted, isSessionCompleted, isPaused]);
 
   useEffect(() => {
-    if (isSessionStarted && remainingSeconds === 0 && !isSessionCompleted && !isFinishingSession && developingPhotos.length > 0) {
-      void finalizeSession(developingPhotos);
+    // タイマーが0になったら完了処理を呼ぶ
+    if (isSessionStarted && remainingSeconds === 0 && !isSessionCompleted && !isFinishingSession && activePhoto) {
+      void finalizeSession(activePhoto);
     }
-  }, [remainingSeconds, isSessionStarted, isSessionCompleted, isFinishingSession, developingPhotos, finalizeSession]);
+  }, [remainingSeconds, isSessionStarted, isSessionCompleted, isFinishingSession, activePhoto, finalizeSession]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -380,12 +371,15 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           setIsPaused(false);
           setCompletionMessage('');
           await refreshPhotoCounts();
+          
+          // ★追加: スタートボタンを押した瞬間に、裏で事前処理をスタート
+          void preProcessPhoto(activePhoto);
         }
       } finally {
         setIsPreparing(false);
       }
     })();
-  }, [activePhoto, isSessionCompleted, isSessionStarted, refreshPhotoCounts]);
+  }, [activePhoto, isSessionCompleted, isSessionStarted, refreshPhotoCounts, preProcessPhoto]);
 
   const togglePause = () => {
       Haptics.selectionAsync();
@@ -515,9 +509,15 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         setResultAfterPhotoUri(null);
         setIsResultModalVisible(false);
         finalizedSessionRef.current = false;
+        setPreProcessedUri(null);
 
         const startedIds = await startDevelopingSession([nextPhoto.id]);
-        setIsSessionStarted(startedIds.length > 0);
+        if (startedIds.length > 0) {
+          setIsSessionStarted(true);
+          // ★追加: 次の写真がスタートした瞬間にも事前処理をスタート
+          void preProcessPhoto(nextPhoto);
+        }
+        
         await refreshPhotoCounts();
       } catch (error) {
         console.log('failed to start next developing session', error);
@@ -525,7 +525,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         setIsPreparing(false);
       }
     })();
-  }, [isFinishingSession, refreshPhotoCounts]);
+  }, [isFinishingSession, refreshPhotoCounts, preProcessPhoto]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
@@ -561,10 +561,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     );
   }
 
+  const isMaskVisible = !isSessionCompleted;
+
   return (
     <SafeAreaView style={albumStyles.container} {...swipePanResponder.panHandlers}>
       <View style={albumStyles.topBar}>
-        {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
         {DISPLAY_FILMS.map((type) => {
           const meta = FILM_META[type];
           return (

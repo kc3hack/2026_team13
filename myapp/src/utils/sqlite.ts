@@ -328,7 +328,7 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
   ));
 
   const effect = row?.effect_type?.toLowerCase();
-  if (effect === 'mono' || effect === 'vivid' || effect === 'retro' || effect === 'disposable' || effect === 'soft') {
+  if (effect === 'mono' || effect === 'vivid' || effect === 'retro') {
     return effect;
   }
 
@@ -342,12 +342,6 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
   if (filmName.includes('retro') || filmName.includes('vintage')) {
     return 'retro';
   }
-  if (filmName.includes('disposable') || filmName.includes('使い捨て')) {
-    return 'disposable';
-  }
-  if (filmName.includes('soft') || filmName.includes('dream') || filmName.includes('ソフト')) {
-    return 'soft';
-  }
 
   if (filmId === 1 || filmId === 11) {
     return 'mono';
@@ -357,12 +351,6 @@ export const getFilmEffectTypeById = async (filmId: number): Promise<RewardFilmT
   }
   if (filmId === 3 || filmId === 13) {
     return 'retro';
-  }
-  if (filmId === 4 || filmId === 14) {
-    return 'disposable';
-  }
-  if (filmId === 5 || filmId === 15) {
-    return 'soft';
   }
 
   return 'mono';
@@ -387,7 +375,7 @@ export const getFilmInventory = async (): Promise<FilmInventory> => {
   const rows = await withDatabaseRetry((db) => db.getAllAsync<{ type: string; count: number }>(
     'SELECT type, count FROM film_inventory;'
   ));
-  const inventory: FilmInventory = { mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 };
+  const inventory: FilmInventory = { mono: 0, vivid: 0, retro: 0};
   for (const row of rows) {
     if (row.type in inventory) {
       inventory[row.type as RewardFilmType] = row.count;
