@@ -457,6 +457,19 @@ detailFooterText: {
     borderRadius: s(8),
     backgroundColor: '#1f1f1f',
   },
+  processingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 12,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  processingOverlayText: {
+    color: '#fff',
+    fontFamily: 'cinecaption226',
+    fontSize: 14,
+  },
 
   /* ── Detail photo modal (fallback overlay) ── */
   detailModalBackdrop: {

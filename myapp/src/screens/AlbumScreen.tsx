@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
   FlatList,
   Image,
   Alert,
@@ -27,6 +28,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { deletePhoto, getPhotosByStatus, PhotoWithFilmName, getFilmInventory } from '../utils/sqlite';
+import { getUndevelopedPhotosFromDirectory, hasUnprocessedUndevelopedPhotos, rebuildUndevelopedAlbumWithProcessing } from '../utils/undevelopedAlbumProcessor';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 import { styles } from '../styles/AlbumScreen.styles';
@@ -88,6 +90,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
+  const [isProcessingUndeveloped, setIsProcessingUndeveloped] = useState(false);
   
   // ★修正: 初期ステートを3種類のみに限定
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
@@ -224,7 +227,23 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   }, [totalPages]);
 
   const load = useCallback(async (status: PhotoTab) => {
-    const list = await getPhotosByStatus(status);
+    let list: PhotoWithFilmName[] = [];
+
+    if (status === 'undeveloped') {
+      const shouldProcess = await hasUnprocessedUndevelopedPhotos();
+      if (shouldProcess) {
+        setIsProcessingUndeveloped(true);
+        try {
+          await rebuildUndevelopedAlbumWithProcessing();
+        } finally {
+          setIsProcessingUndeveloped(false);
+        }
+      }
+      list = await getUndevelopedPhotosFromDirectory();
+    } else {
+      list = await getPhotosByStatus(status);
+    }
+
     setPhotos(list);
   }, []);
 
@@ -763,6 +782,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
         </View>
 
         <View style={styles.rightPanel}>
+          {isProcessingUndeveloped && (
+            <View style={styles.processingOverlay} pointerEvents="none">
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.processingOverlayText}>未現像プレビューを生成中...</Text>
+            </View>
+          )}
           <View style={styles.gridContainer}>
             {Array.from({ length: 6 }).map((_, idx) => {
               const item = sortedPhotos[displayStartIndex + idx];
@@ -793,15 +818,15 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                           source={{ uri: item.uri }}
                           style={styles.gridImage}
                           resizeMode="cover"
-                          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
+                          //blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
                         />
-                        {selectedTab === 'undeveloped' && (
+                        {/*selectedTab === 'undeveloped' && (
                           <BlurView
                             intensity={Platform.OS === 'ios' ? 22 : 0}
                             tint="default"
                             style={styles.photoBlurOverlay}
                           />
-                        )}
+                        )*/}
                         {isSelectionMode && (
                           <View style={[styles.selectionBadge, selectedPhotoIds.includes(item.id) && styles.selectionBadgeActive]}>
                             <Text style={styles.selectionBadgeText}>{selectedPhotoIds.includes(item.id) ? '✓' : ''}</Text>
@@ -820,7 +845,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
           </View>
         </View>
       </View>
-
+        
       {selectedPhoto && (
         <Pressable
           style={styles.detailModalBackdrop}
@@ -843,16 +868,18 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
               source={{ uri: selectedPhoto.uri }}
               style={[styles.detailImage, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
               resizeMode="contain"
-              blurRadius={selectedPhoto.status === 'undeveloped' ? 22 : 0}
+              //blurRadius={selectedPhoto.status === 'undeveloped' ? 22 : 0}
             />
-            {selectedPhoto.status === 'undeveloped' && (
+            {/*selectedPhoto.status === 'undeveloped' && (
               <BlurView
                 intensity={Platform.OS === 'ios' ? 22 : 0}
                 tint="default"
                 style={[styles.detailBlurOverlay, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
               />
-            )}
+            )*/}
           </Pressable>
+
+          {/* ナビゲーションボタン*/}
           {selectedPhotoIndex > 0 && (
             <TouchableOpacity
               style={[styles.detailModalNavButton, styles.detailModalNavButtonLeft]}
@@ -932,9 +959,9 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                 <Text style={styles.menuInfoValue}>{formattedCreatedAt}</Text>
 
                 <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
-                {/* ★修正: メニュー内のフィルム名表示もmonoをCinemaと表示する */}
+                {/* ★修正: メニュー内のフィルム名表示もMonoをCinemaと表示する */}
                 <Text style={styles.menuInfoValue}>
-                  {menuTargetPhoto?.film_name === 'mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
+                  {menuTargetPhoto?.film_name === 'Mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
                 </Text>
               </View>
             </View>
@@ -969,7 +996,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
 
                 <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
                 <Text style={styles.menuInfoValue}>
-                  {menuTargetPhoto?.film_name === 'mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
+                  {menuTargetPhoto?.film_name === 'Mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
                 </Text>
               </View>
             </View>

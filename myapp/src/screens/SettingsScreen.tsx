@@ -91,7 +91,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
       setDebugFilmLoading(true);
       const inventory = await addFilm(type);
       const count = inventory[type];
-      Alert.alert('Debug', `${FILM_META[type].label} +1 (現在: ${count})`);
+      Alert.alert('Debug', `${FILM_META[type].label === '01 Mono' ? '01 Cinema' : FILM_META[type].label} +1 (現在: ${count})`);
     } catch (error) {
       console.log('failed to add debug film', error);
       Alert.alert('Error', 'Failed to add debug film.');
@@ -107,7 +107,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         await addFilm(type, 1);
       }
       const inventory = await getFilmInventory();
-      Alert.alert('Debug', `All films +1\nMONO:${inventory.mono} VIVID:${inventory.vivid} RETRO:${inventory.retro} DISP:${inventory.disposable} SOFT:${inventory.soft}`);
+      Alert.alert('Debug', `All films +1\nCinema:${inventory.mono} Vivid:${inventory.vivid} Retro:${inventory.retro} `);
     } catch (error) {
       console.log('failed to add all debug films', error);
       Alert.alert('Error', 'Failed to add debug films.');
@@ -167,7 +167,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
                     onPress={() => handleAddDebugFilm(type)}
                     disabled={debugFilmLoading}
                   >
-                    <Text style={[styles.debugFilmBtnText, boldFont]}>{FILM_META[type].label} +1</Text>
+                    <Text style={[styles.debugFilmBtnText, boldFont]}>{FILM_META[type].label === '01 Mono' ? '01 Cinema' : FILM_META[type].label} +1</Text>
                   </TouchableOpacity>
                 ))}
               </View>

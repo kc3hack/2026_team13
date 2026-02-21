@@ -208,7 +208,7 @@ export const useGithubCommits = () => {
           filmCounts[key] = (filmCounts[key] || 0) + 1;
         }
         const filmSummary = Object.entries(filmCounts)
-          .map(([name, count]) => `${name} ×${count}`)
+          .map(([name, count]) => `${name === '01 Mono' ? '01 Cinema' : name} ×${count}`)
           .join('\n');
 
         return {

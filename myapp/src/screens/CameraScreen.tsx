@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions, Platform } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Linking from 'expo-linking';
 import { useFonts } from 'expo-font';
 import {
   CourierPrime_400Regular,
@@ -118,17 +119,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
     })
   ).current;
 
-  if (!fontsLoaded) return <SafeAreaView style={styles.container} />;
-  if (!permission) return <View />;
+  if (!permission) return <View />; 
   if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <Text style={[styles.permissionText, boldFont]}>カメラ権限が必要です</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.dashboardBtn}>
-          <Text style={[styles.btnText, boldFont]}>許可</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    return ( 
+      <SafeAreaView style={styles.container}>
+        <View style={styles.permissionContainer}>
+          <Text style={styles.permissionText}>カメラの権限が必要です</Text>
+          <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+            <Text style={styles.permissionButtonText}>権限を許可</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView> 
+    ); 
   }
 
   const handleZoom = (increment: boolean) => {
@@ -142,6 +144,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   };
 
   const takePicture = async () => {
+
     if (!cameraRef.current || isShooting || !canShoot || !selectedFilm || !activeFilmId) return;
 
     try {
