@@ -106,16 +106,17 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
 
   if (!permission) return <View />; 
   if (!permission.granted) {
-     return ( 
-     <SafeAreaView style={styles.container}>
+    return ( 
+      <SafeAreaView style={styles.container}>
         <View style={styles.permissionContainer}>
           <Text style={styles.permissionText}>カメラの権限が必要です</Text>
           <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
             <Text style={styles.permissionButtonText}>権限を許可</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView> ); }
-
+      </SafeAreaView> 
+    ); 
+  }
 
   const handleZoom = (increment: boolean) => {
     setZoom((prev) => Math.max(0, Math.min(increment ? prev + 0.1 : prev - 0.1, 1)));
