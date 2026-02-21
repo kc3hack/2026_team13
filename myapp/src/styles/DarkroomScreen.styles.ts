@@ -46,8 +46,8 @@ export const styles = StyleSheet.create({
     zIndex: 100,
   },
   resultModalCard: {
-    width: '96%',
-    height: '70%',
+    width: '88%',
+    height: '82%',
     backgroundColor: '#040804',
     borderWidth: 1,
     borderColor: 'rgba(108, 174, 117, 0.35)',
@@ -68,11 +68,32 @@ export const styles = StyleSheet.create({
     fontWeight: 'normal',
   },
   resultComparisonRow: {
-    flex: 1,
     padding: s(14),
     flexDirection: 'row',
     alignItems: 'center',
     gap: s(8),
+  },
+  resultBodyScroll: {
+    flex: 1,
+  },
+  resultBodyContent: {
+    paddingBottom: s(8),
+  },
+  resultItemCard: {
+    marginHorizontal: s(10),
+    marginTop: s(10),
+    borderWidth: 1,
+    borderColor: 'rgba(108, 174, 117, 0.22)',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  resultItemTitle: {
+    color: '#6cae75',
+    fontFamily: 'CourierPrime_700Bold',
+    fontWeight: 'normal',
+    fontSize: s(11),
+    letterSpacing: s(1),
+    paddingTop: s(8),
+    paddingLeft: s(12),
   },
   resultColumn: {
     flex: 1,
@@ -99,8 +120,8 @@ export const styles = StyleSheet.create({
     fontWeight: 'normal',
   },
   resultImageFrame: {
-    width: '100%',
-    maxHeight: '92%',
+    width: '88%',
+    maxHeight: '82%',
     backgroundColor: '#000',
     borderWidth: 1,
     borderColor: 'rgba(108, 174, 117, 0.2)',
