@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, BackHandler, Image, Platform, SafeAreaView, Text, TouchableOpacity, View, PanResponder, AppState, Alert, useWindowDimensions } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
-// ★ 修正: countDevelopingPhotos と 新しく作った countPendingPhotos をインポート
 import { completeDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri, getFilmInventory, countDevelopingPhotos, countPendingPhotos } from '../utils/sqlite';
 import { applyFilmEffectToPhoto } from '../utils/photoEffects';
 import { useGithubCommits } from '../hooks/useGithubCommits';
@@ -20,6 +19,9 @@ interface DarkroomScreenProps {
 const SESSION_SECONDS = 10;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
 
+// ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
+const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
+
 interface DevelopingPhoto {
   id: number;
   uri: string;
@@ -36,9 +38,14 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [completionMessage, setCompletionMessage] = useState('');
   const [isFinishingSession, setIsFinishingSession] = useState(false);
   const [rightPanelDim, setRightPanelDim] = useState({ width: 0, height: 0 });
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 });
   
-  // ★ 追加: INFO表示用のカウントステート
+  // ★修正: 初期ステートを3種類のみに限定
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
+    mono: 0, 
+    vivid: 0, 
+    retro: 0 
+  } as FilmInventory);
+  
   const [developingCount, setDevelopingCount] = useState(0);
   const [totalPendingCount, setTotalPendingCount] = useState(0);
 
@@ -54,7 +61,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     latestStateRef.current = { remainingSeconds, isPaused, activePhotoId: activePhoto?.id };
   }, [remainingSeconds, isPaused, activePhoto?.id]);
 
-  // ★ 追加: 枚数をDBから取得して更新する関数
   const refreshPhotoCounts = useCallback(async () => {
     try {
       const devCount = await countDevelopingPhotos();
@@ -97,6 +103,8 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (cancelProcessingRef.current) return;
       try {
         const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
+        
+        // ★修正: 使わなくなった使い捨て・ソフトの条件式を削除
         const effectType =
           resolvedEffectType
           ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
@@ -105,11 +113,8 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
               ? 'vivid'
               : targetPhoto.filmId === 3 || targetPhoto.filmId === 13
                 ? 'retro'
-                : targetPhoto.filmId === 4 || targetPhoto.filmId === 14
-                  ? 'disposable'
-                  : targetPhoto.filmId === 5 || targetPhoto.filmId === 15
-                    ? 'soft'
-                    : 'mono');
+                : 'mono');
+
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelProcessingRef.current,
         });
@@ -136,7 +141,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       setCompletionMessage('現像完了。アルバムを確認してください');
       setIsSessionCompleted(true);
       if (activePhoto) delete globalDarkroomCache[activePhoto.id];
-      await refreshPhotoCounts(); // ★ 完了時にカウント更新
+      await refreshPhotoCounts();
     } catch (error) {
       console.log('failed to finalize developing session', error);
     } finally {
@@ -154,7 +159,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
     const loadSession = async () => {
       try {
-        await refreshPhotoCounts(); // ★ 初期ロード時にカウント更新
+        await refreshPhotoCounts();
 
         const developing = await getDevelopingPhotos();
         if (!isActive) return;
@@ -245,7 +250,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           setIsSessionStarted(true);
           setIsPaused(false);
           setCompletionMessage('');
-          await refreshPhotoCounts(); // ★ 開始時にカウント更新
+          await refreshPhotoCounts();
         }
       } finally {
         setIsPreparing(false);
@@ -325,7 +330,8 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   return (
     <SafeAreaView style={albumStyles.container} {...swipePanResponder.panHandlers}>
       <View style={albumStyles.topBar}>
-        {FILM_TYPES.map((type) => {
+        {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
+        {DISPLAY_FILMS.map((type) => {
           const meta = FILM_META[type];
           return (
             <View key={type} style={albumStyles.filmBadge}>
@@ -365,12 +371,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                   <Text style={[
                     darkroomStyles.statusValue, 
                     { 
-                      fontSize: 44,           // 7セグメントが映えるように大きく
-                      fontWeight: 'normal',   // デジタルフォントはnormal推奨
+                      fontSize: 44,           
+                      fontWeight: 'normal',   
                       color: '#D41414', 
                       letterSpacing: 2, 
                       marginBottom: 24,
-                      fontFamily: 'DSEG7Classic-Regular', // ★ 7セグメントフォント（※別途読み込みが必要）
+                      fontFamily: 'DSEG7Classic-Regular', 
                       textShadowColor: 'rgba(212, 20, 20, 0.8)',
                       textShadowOffset: { width: 0, height: 0 },
                       textShadowRadius: 10,
@@ -382,14 +388,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                 </>
               )}
 
-              {/* メッセージ表示（完了時など） */}
               {(!isFinishingSession && completionMessage.length > 0) && (
                 <Text style={[darkroomStyles.infoValue, { marginBottom: 24, color: '#C5B7B7' }]}>
                   {completionMessage}
                 </Text>
               )}
 
-              {/* ★ 変更: INFO を (現像中) / (未現像全体) に変更 */}
               <Text style={albumStyles.label}>[ INFO: DEV / TOTAL ]</Text>
               <Text style={[darkroomStyles.infoValue, { fontSize: 22, letterSpacing: 4, color: '#fff' }]}>
                 {developingCount} / {totalPendingCount}
