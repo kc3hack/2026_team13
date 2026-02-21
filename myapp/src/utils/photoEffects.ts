@@ -11,603 +11,278 @@ if (typeof globalThis.Buffer === 'undefined') {
 
 const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 const YIELD_EVERY_PIXELS = 16384;
-const MAX_PROCESS_WIDTH = 1280;
+
+// 画質設定
+const MAX_PROCESS_WIDTH = 1024;
+const JPEG_QUALITY = 85;
 
 type SegmentKey = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
-
 const DIGITAL_GLYPH_WIDTH = 7;
 const DIGITAL_GLYPH_HEIGHT = 11;
 
+// --- デジタルフォント構築 ---
 const buildDigitalGlyph = (segments: SegmentKey[]): string[] => {
   const grid = Array.from({ length: DIGITAL_GLYPH_HEIGHT }, () => Array.from({ length: DIGITAL_GLYPH_WIDTH }, () => '0'));
-
   const fillRect = (left: number, top: number, right: number, bottom: number) => {
-    const clampedLeft = Math.max(0, left);
-    const clampedTop = Math.max(0, top);
-    const clampedRight = Math.min(DIGITAL_GLYPH_WIDTH - 1, right);
-    const clampedBottom = Math.min(DIGITAL_GLYPH_HEIGHT - 1, bottom);
-
-    for (let y = clampedTop; y <= clampedBottom; y += 1) {
-      for (let x = clampedLeft; x <= clampedRight; x += 1) {
+    for (let y = Math.max(0, top); y <= Math.min(DIGITAL_GLYPH_HEIGHT - 1, bottom); y += 1) {
+      for (let x = Math.max(0, left); x <= Math.min(DIGITAL_GLYPH_WIDTH - 1, right); x += 1) {
         grid[y][x] = '1';
       }
     }
   };
-
-  for (const segment of segments) {
-    if (segment === 'a') {
-      fillRect(2, 0, 4, 0);
-    } else if (segment === 'b') {
-      fillRect(6, 2, 6, 4);
-    } else if (segment === 'c') {
-      fillRect(6, 7, 6, 9);
-    } else if (segment === 'd') {
-      fillRect(2, 10, 4, 10);
-    } else if (segment === 'e') {
-      fillRect(0, 7, 0, 9);
-    } else if (segment === 'f') {
-      fillRect(0, 2, 0, 4);
-    } else if (segment === 'g') {
-      fillRect(2, 5, 4, 5);
-    }
-  }
-
+  segments.forEach(s => {
+    if (s === 'a') fillRect(2, 0, 4, 0); else if (s === 'b') fillRect(6, 2, 6, 4); else if (s === 'c') fillRect(6, 7, 6, 9);
+    else if (s === 'd') fillRect(2, 10, 4, 10); else if (s === 'e') fillRect(0, 7, 0, 9); else if (s === 'f') fillRect(0, 2, 0, 4);
+    else if (s === 'g') fillRect(2, 5, 4, 5);
+  });
   return grid.map((row) => row.join(''));
 };
 
 const DIGIT_GLYPHS: Record<string, string[]> = {
-  '0': buildDigitalGlyph(['a', 'b', 'c', 'd', 'e', 'f']),
-  '1': buildDigitalGlyph(['b', 'c']),
-  '2': buildDigitalGlyph(['a', 'b', 'd', 'e', 'g']),
-  '3': buildDigitalGlyph(['a', 'b', 'c', 'd', 'g']),
-  '4': buildDigitalGlyph(['b', 'c', 'f', 'g']),
-  '5': buildDigitalGlyph(['a', 'c', 'd', 'f', 'g']),
-  '6': buildDigitalGlyph(['a', 'c', 'd', 'e', 'f', 'g']),
-  '7': buildDigitalGlyph(['a', 'b', 'c']),
-  '8': buildDigitalGlyph(['a', 'b', 'c', 'd', 'e', 'f', 'g']),
-  '9': buildDigitalGlyph(['a', 'b', 'c', 'd', 'f', 'g']),
-  "'": [
-    '0000000',
-    '0001100',
-    '0001100',
-    '0001000',
-    '0000000',
-    '0000000',
-    '0000000',
-    '0000000',
-    '0000000',
-    '0000000',
-    '0000000',
-  ],
-  '/': [
-    '0000000',
-    '0000001',
-    '0000011',
-    '0000110',
-    '0001100',
-    '0011000',
-    '0110000',
-    '1100000',
-    '1000000',
-    '0000000',
-    '0000000',
-  ],
+  '0': buildDigitalGlyph(['a', 'b', 'c', 'd', 'e', 'f']), '1': buildDigitalGlyph(['b', 'c']),
+  '2': buildDigitalGlyph(['a', 'b', 'd', 'e', 'g']), '3': buildDigitalGlyph(['a', 'b', 'c', 'd', 'g']),
+  '4': buildDigitalGlyph(['b', 'c', 'f', 'g']), '5': buildDigitalGlyph(['a', 'c', 'd', 'f', 'g']),
+  '6': buildDigitalGlyph(['a', 'c', 'd', 'e', 'f', 'g']), '7': buildDigitalGlyph(['a', 'b', 'c']),
+  '8': buildDigitalGlyph(['a', 'b', 'c', 'd', 'e', 'f', 'g']), '9': buildDigitalGlyph(['a', 'b', 'c', 'd', 'f', 'g']),
+  "'": ['0000000','0001100','0001100','0001000','0000000','0000000','0000000','0000000','0000000','0000000','0000000'],
+  '/': ['0000000','0000001','0000011','0000110','0001100','0011000','0110000','1100000','1000000','0000000','0000000'],
 };
 
-const DATE_STAMP_CORE_COLOR = { red: 255, green: 176, blue: 76 };
-const DATE_STAMP_GLOW_INNER = { red: 255, green: 140, blue: 56 };
-const DATE_STAMP_GLOW_OUTER = { red: 150, green: 68, blue: 18 };
-const DATE_STAMP_SHADOW = { red: 8, green: 4, blue: 2 };
+// --- 日付スタンプ色設定 (★再修正: 黄色味を抑え、温かみのあるオレンジ赤に変更) ---
+const DATE_STAMP_CORE_COLOR = { red: 255, green: 130, blue: 70 };  // 中心: 温かみのあるオレンジ赤
+const DATE_STAMP_GLOW_INNER = { red: 255, green: 70, blue: 10 };   // 内側: 鮮やかな赤オレンジ
+const DATE_STAMP_GLOW_OUTER = { red: 200, green: 40, blue: 5 };    // 外側: 深い赤オレンジ
+const DATE_STAMP_SHADOW = { red: 30, green: 10, blue: 5 };         // 影: 赤黒い
 
 const formatDateStamp = (date: Date): string => {
   const shortYear = `${date.getFullYear() % 100}`.padStart(2, '0');
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
-
   return `''${shortYear}${month}${day}`;
 };
 
-const drawPixel = (
-  data: Uint8Array,
-  width: number,
-  height: number,
-  x: number,
-  y: number,
-  color: { red: number; green: number; blue: number },
-) => {
-  if (x < 0 || x >= width || y < 0 || y >= height) {
-    return;
-  }
-
-  const index = (y * width + x) * 4;
-  data[index] = color.red;
-  data[index + 1] = color.green;
-  data[index + 2] = color.blue;
-  data[index + 3] = 255;
-};
-
-const blendPixel = (
-  data: Uint8Array,
-  width: number,
-  height: number,
-  x: number,
-  y: number,
-  color: { red: number; green: number; blue: number },
-  alpha: number,
-) => {
-  if (x < 0 || x >= width || y < 0 || y >= height) {
-    return;
-  }
-
+const blendPixel = (data: Uint8Array, width: number, height: number, x: number, y: number, color: { red: number; green: number; blue: number }, alpha: number) => {
+  if (x < 0 || x >= width || y < 0 || y >= height) return;
   const clampedAlpha = Math.max(0, Math.min(1, alpha));
-  if (clampedAlpha === 0) {
-    return;
-  }
-
+  if (clampedAlpha === 0) return;
   const index = (y * width + x) * 4;
-  const baseRed = data[index];
-  const baseGreen = data[index + 1];
-  const baseBlue = data[index + 2];
-
-  data[index] = clamp(baseRed * (1 - clampedAlpha) + color.red * clampedAlpha);
-  data[index + 1] = clamp(baseGreen * (1 - clampedAlpha) + color.green * clampedAlpha);
-  data[index + 2] = clamp(baseBlue * (1 - clampedAlpha) + color.blue * clampedAlpha);
+  data[index] = clamp(data[index] * (1 - clampedAlpha) + color.red * clampedAlpha);
+  data[index + 1] = clamp(data[index + 1] * (1 - clampedAlpha) + color.green * clampedAlpha);
+  data[index + 2] = clamp(data[index + 2] * (1 - clampedAlpha) + color.blue * clampedAlpha);
   data[index + 3] = 255;
 };
 
-const drawDateStamp = (
-  data: Uint8Array,
-  width: number,
-  height: number,
-  date: Date,
-) => {
+// --- 日付描画処理 ---
+const drawDateStamp = (data: Uint8Array, width: number, height: number, date: Date) => {
   const stampText = formatDateStamp(date);
-  const scale = Math.max(2, Math.min(7, Math.floor(width / 260)));
-  const glyphWidth = DIGITAL_GLYPH_WIDTH;
-  const glyphHeight = DIGITAL_GLYPH_HEIGHT;
-  const baseCharSpacing = Math.max(2, Math.floor(scale * 1.2));
-  const apostrophePairSpacing = 0;
-  const apostropheToYearSpacing = Math.max(1, Math.floor(scale * 0.2));
-  const dateGroupSpacing = baseCharSpacing + Math.max(3, Math.floor(scale * 1.9));
-  const margin = Math.max(14, scale * 7);
+  const scale = Math.max(1, Math.min(5, Math.floor(width / 380)));
+  const margin = Math.max(16, scale * 8); 
+  
+  let textWidth = 0;
   const chars = Array.from(stampText);
-  const getInterCharSpacing = (currentChar: string, nextChar: string | undefined, index: number): number => {
-    if (!nextChar) {
-      return 0;
-    }
+  chars.forEach((char, i) => {
+    let spacing = Math.max(1, Math.floor(scale * 1.2));
+    if (i === 0 && char === '\'' && chars[i+1] === '\'') spacing = 0;
+    else if (i === 1 && char === '\'' && /\d/.test(chars[i+1])) spacing = Math.max(1, Math.floor(scale * 0.2));
+    else if (i === 3 || i === 5) spacing += Math.max(2, Math.floor(scale * 1.9));
+    textWidth += DIGITAL_GLYPH_WIDTH * scale + (chars[i+1] ? spacing : 0);
+  });
 
-    if (index === 0 && currentChar === '\'' && nextChar === '\'') {
-      return apostrophePairSpacing;
-    }
-
-    if (index === 1 && currentChar === '\'' && /\d/.test(nextChar)) {
-      return apostropheToYearSpacing;
-    }
-
-    if (index === 3 || index === 5) {
-      return dateGroupSpacing;
-    }
-
-    return baseCharSpacing;
-  };
-  const textWidth = chars.reduce((total, char, index) => {
-    const nextChar = chars[index + 1];
-    return total + glyphWidth * scale + getInterCharSpacing(char, nextChar, index);
-  }, 0);
-  const textHeight = glyphHeight * scale;
   const startX = Math.max(0, width - margin - textWidth);
-  const startY = Math.max(0, height - margin - textHeight);
-  const glowRadius = Math.max(1, Math.floor(scale * 0.75));
-  const outlineRadius = Math.max(1, Math.floor(scale * 0.45));
+  const startY = Math.max(0, height - margin - (DIGITAL_GLYPH_HEIGHT * scale));
+  
+  const glowRadius = Math.max(1, Math.floor(scale * 0.4)); 
 
   let cursorX = startX;
-
-  for (let charIndex = 0; charIndex < chars.length; charIndex += 1) {
-    const char = chars[charIndex];
-    const nextChar = chars[charIndex + 1];
+  chars.forEach((char, i) => {
     const glyph = DIGIT_GLYPHS[char];
-    if (!glyph) {
-      cursorX += glyphWidth * scale + getInterCharSpacing(char, nextChar, charIndex);
-      continue;
-    }
+    let spacing = Math.max(1, Math.floor(scale * 1.2));
+    if (i === 0 && char === '\'' && chars[i+1] === '\'') spacing = 0;
+    else if (i === 1 && char === '\'' && /\d/.test(chars[i+1])) spacing = Math.max(1, Math.floor(scale * 0.2));
+    else if (i === 3 || i === 5) spacing += Math.max(2, Math.floor(scale * 1.9));
 
-    const charBaseY = startY;
-
-    for (let gy = 0; gy < glyph.length; gy += 1) {
-      const row = glyph[gy];
-      for (let gx = 0; gx < row.length; gx += 1) {
-        if (row[gx] !== '1') {
-          continue;
-        }
-
-        const pixelX = cursorX + gx * scale;
-        const pixelY = charBaseY + gy * scale;
-
-        for (let sy = 0; sy < scale; sy += 1) {
-          for (let sx = 0; sx < scale; sx += 1) {
-            const currentX = pixelX + sx;
-            const currentY = pixelY + sy;
-
-            for (let dy = -glowRadius; dy <= glowRadius; dy += 1) {
-              for (let dx = -glowRadius; dx <= glowRadius; dx += 1) {
-                const distance = Math.abs(dx) + Math.abs(dy);
-                if (distance > glowRadius + 1) {
-                  continue;
-                }
-
-                if (distance <= Math.max(1, Math.floor(glowRadius / 2))) {
-                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_INNER, 0.16);
-                } else {
-                  blendPixel(data, width, height, currentX + dx, currentY + dy, DATE_STAMP_GLOW_OUTER, 0.08);
+    if (glyph) {
+      for (let gy = 0; gy < glyph.length; gy++) {
+        for (let gx = 0; gx < glyph[gy].length; gx++) {
+          if (glyph[gy][gx] !== '1') continue;
+          const pX = cursorX + gx * scale;
+          const pY = startY + gy * scale;
+          for (let sy = 0; sy < scale; sy++) {
+            for (let sx = 0; sx < scale; sx++) {
+              const cX = pX + sx; const cY = pY + sy;
+              for (let dy = -glowRadius; dy <= glowRadius; dy++) {
+                for (let dx = -glowRadius; dx <= glowRadius; dx++) {
+                  const dist = Math.abs(dx) + Math.abs(dy);
+                  if (dist > glowRadius + 1) continue;
+                  const glowAlpha = dist <= glowRadius / 2 ? 0.20 : 0.08; 
+                  blendPixel(data, width, height, cX + dx, cY + dy, dist <= glowRadius / 2 ? DATE_STAMP_GLOW_INNER : DATE_STAMP_GLOW_OUTER, glowAlpha);
                 }
               }
+              blendPixel(data, width, height, cX + 2, cY + 2, DATE_STAMP_SHADOW, 0.5);
+              blendPixel(data, width, height, cX, cY, DATE_STAMP_CORE_COLOR, 1.0);
             }
-
-            for (let oy = -outlineRadius; oy <= outlineRadius; oy += 1) {
-              for (let ox = -outlineRadius; ox <= outlineRadius; ox += 1) {
-                if (ox === 0 && oy === 0) {
-                  continue;
-                }
-                blendPixel(data, width, height, currentX + ox, currentY + oy, DATE_STAMP_SHADOW, 0.64);
-              }
-            }
-
-            blendPixel(data, width, height, currentX + 2, currentY + 2, DATE_STAMP_SHADOW, 0.42);
-
-            blendPixel(data, width, height, currentX, currentY, DATE_STAMP_CORE_COLOR, 0.92);
           }
         }
       }
     }
+    cursorX += DIGITAL_GLYPH_WIDTH * scale + (chars[i+1] ? spacing : 0);
+  });
+};
 
-    cursorX += glyphWidth * scale + getInterCharSpacing(char, nextChar, charIndex);
+const yieldToMainThread = async () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+// 全フィルター共通ノイズ
+const applyGrainNoise = async (data: Uint8Array, width: number, height: number) => {
+  const noiseStrength = 12;
+  for (let i = 0; i < data.length; i += 4) {
+    const x = (i / 4) % width; const y = Math.floor((i / 4) / width);
+    const grainSeed = (x * 13 + y * 17 + (x ^ y) * 7) % 64;
+    const noise = (grainSeed - 32) * (noiseStrength / 32.0);
+    data[i] = clamp(data[i] + noise);
+    data[i + 1] = clamp(data[i + 1] + noise);
+    data[i + 2] = clamp(data[i + 2] + noise);
   }
 };
 
-const yieldToMainThread = async (): Promise<void> => {
-  await new Promise<void>((resolve) => setTimeout(resolve, 0));
-};
-
-const normalizeBase64Payload = (rawBase64: string): string => {
-  const trimmed = rawBase64.trim();
-  const commaIndex = trimmed.indexOf(',');
-  const payload = commaIndex >= 0 ? trimmed.slice(commaIndex + 1) : trimmed;
-  const standardBase64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-  const padLength = standardBase64.length % 4;
-
-  if (padLength === 0) {
-    return standardBase64;
-  }
-
-  return standardBase64.padEnd(standardBase64.length + (4 - padLength), '=');
-};
-
-const applyMonoFilter = async (data: Uint8Array, shouldCancel?: () => boolean): Promise<boolean> => {
-  const contrast = 1.22;
-
+// 🎞️ 1. レトロ (Retro)
+const applyRetroFilter = async (data: Uint8Array, width: number, height: number, shouldCancel?: () => boolean): Promise<boolean> => {
+  const contrast = 1.15; const brightness = 1.10;
+  const centerX = width / 2; const centerY = height / 2;
+  const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
   let processedPixels = 0;
-
-  for (let index = 0; index < data.length; index += 4) {
-    if (shouldCancel?.()) {
-      return false;
-    }
-
-    const red = data[index];
-    const green = data[index + 1];
-    const blue = data[index + 2];
-    const luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
-    const contrastedGray = (luminance - 128) * contrast + 128;
-    const gray = clamp(contrastedGray);
-
-    data[index] = gray;
-    data[index + 1] = gray;
-    data[index + 2] = gray;
-
-    processedPixels += 1;
-    if (processedPixels % YIELD_EVERY_PIXELS === 0) {
-      await yieldToMainThread();
-    }
+  for (let i = 0; i < data.length; i += 4) {
+    if (shouldCancel?.()) return false;
+    const x = (i / 4) % width; const y = Math.floor((i / 4) / width);
+    let r = data[i] * 1.15; let g = data[i + 1] * 1.08; let b = data[i + 2] * 0.85;
+    r = ((r - 128) * contrast + 128) * brightness;
+    g = ((g - 128) * contrast + 128) * brightness;
+    b = ((b - 128) * contrast + 128) * brightness;
+    const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+    let vignette = Math.cos((dist / maxDist) * (Math.PI / 2.0));
+    vignette = Math.pow(Math.max(0, vignette), 1.2); 
+    vignette = vignette * 0.55 + 0.45; 
+    data[i] = clamp(r * vignette);
+    data[i + 1] = clamp(g * vignette * 0.95);
+    data[i + 2] = clamp(b * vignette * 0.8);
+    if (++processedPixels % YIELD_EVERY_PIXELS === 0) await yieldToMainThread();
   }
-
   return true;
 };
 
+// 🎞️ 2. ビビット (Vivid)
 const applyVividFilter = async (data: Uint8Array, shouldCancel?: () => boolean): Promise<boolean> => {
-  const saturation = 1.35;
-  const contrast = 1.1;
-  const brightness = 1.03;
-  let processedPixels = 0;
-
-  for (let index = 0; index < data.length; index += 4) {
-    if (shouldCancel?.()) {
-      return false;
-    }
-
-    const red = data[index];
-    const green = data[index + 1];
-    const blue = data[index + 2];
-    const luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
-
-    const saturatedR = luminance + (red - luminance) * saturation;
-    const saturatedG = luminance + (green - luminance) * saturation;
-    const saturatedB = luminance + (blue - luminance) * saturation;
-
-    const contrastedR = ((saturatedR - 128) * contrast + 128) * brightness;
-    const contrastedG = ((saturatedG - 128) * contrast + 128) * brightness;
-    const contrastedB = ((saturatedB - 128) * contrast + 128) * brightness;
-
-    data[index] = clamp(contrastedR);
-    data[index + 1] = clamp(contrastedG);
-    data[index + 2] = clamp(contrastedB);
-
-    processedPixels += 1;
-    if (processedPixels % YIELD_EVERY_PIXELS === 0) {
-      await yieldToMainThread();
-    }
+  const saturation = 1.6;
+  const applySCurve = (val: number) => {
+    const norm = val / 255;
+    const curved = norm < 0.5 ? 2 * norm * norm : 1 - 2 * (1 - norm) * (1 - norm);
+    return curved * 255;
+  };
+  let processed = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (shouldCancel?.()) return false;
+    const r = data[i]; const g = data[i + 1]; const b = data[i + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    let nr = lum + (r - lum) * saturation * 1.1; 
+    let ng = lum + (g - lum) * saturation * 1.0;
+    let nb = lum + (b - lum) * saturation * 1.15; 
+    data[i] = clamp(applySCurve(nr)); data[i + 1] = clamp(applySCurve(ng)); data[i + 2] = clamp(applySCurve(nb));
+    if (++processed % YIELD_EVERY_PIXELS === 0) await yieldToMainThread();
   }
-
   return true;
 };
 
-const applyRetroFilter = async (data: Uint8Array, shouldCancel?: () => boolean): Promise<boolean> => {
-  const saturation = 0.72;
-  const contrast = 0.92;
-  const brightness = 1.04;
-  let processedPixels = 0;
-
-  for (let index = 0; index < data.length; index += 4) {
-    if (shouldCancel?.()) {
-      return false;
-    }
-
-    const red = data[index];
-    const green = data[index + 1];
-    const blue = data[index + 2];
-
-    const sepiaR = red * 0.393 + green * 0.769 + blue * 0.189;
-    const sepiaG = red * 0.349 + green * 0.686 + blue * 0.168;
-    const sepiaB = red * 0.272 + green * 0.534 + blue * 0.131;
-
-    const luminance = 0.299 * sepiaR + 0.587 * sepiaG + 0.114 * sepiaB;
-
-    const saturatedR = luminance + (sepiaR - luminance) * saturation;
-    const saturatedG = luminance + (sepiaG - luminance) * saturation;
-    const saturatedB = luminance + (sepiaB - luminance) * saturation;
-
-    const contrastedR = ((saturatedR - 128) * contrast + 128) * brightness;
-    const contrastedG = ((saturatedG - 128) * contrast + 128) * brightness;
-    const contrastedB = ((saturatedB - 128) * contrast + 128) * brightness;
-
-    data[index] = clamp(contrastedR + 8);
-    data[index + 1] = clamp(contrastedG + 4);
-    data[index + 2] = clamp(contrastedB - 6);
-
-    processedPixels += 1;
-    if (processedPixels % YIELD_EVERY_PIXELS === 0) {
-      await yieldToMainThread();
-    }
+// 🎞️ 3. シネマ (Cinema)
+const applyCinemaFilter = async (data: Uint8Array, width: number, height: number, shouldCancel?: () => boolean): Promise<boolean> => {
+  const contrast = 1.25; const tealStrength = 0.45; const orangeStrength = 0.35;
+  let processed = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (shouldCancel?.()) return false;
+    const r = data[i]; const g = data[i + 1]; const b = data[i + 2];
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    const shadowShift = (1.0 - lum) * tealStrength * 255;
+    const highlightShift = lum * orangeStrength * 255;
+    let nr = r + highlightShift * 0.8 - shadowShift * 0.5;
+    let ng = g + highlightShift * 0.4 + shadowShift * 0.5;
+    let nb = b - highlightShift * 0.6 + shadowShift;
+    nr = ((nr - 128) * contrast + 128); ng = ((ng - 128) * contrast + 128); nb = ((nb - 128) * contrast + 128);
+    data[i] = clamp(nr); data[i + 1] = clamp(ng); data[i + 2] = clamp(nb);
+    if (++processed % YIELD_EVERY_PIXELS === 0) await yieldToMainThread();
   }
-
   return true;
 };
 
-const applyDisposableFilter = async (
-  data: Uint8Array,
-  width: number,
-  height: number,
-  shouldCancel?: () => boolean,
-): Promise<boolean> => {
-  const saturation = 0.84;
-  const contrast = 0.95;
-  const brightness = 1.02;
-  const vignetteStrength = 0.52;
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
-  let processedPixels = 0;
-
-  for (let index = 0; index < data.length; index += 4) {
-    if (shouldCancel?.()) {
-      return false;
-    }
-
-    const pixelIndex = index / 4;
-    const x = pixelIndex % width;
-    const y = Math.floor(pixelIndex / width);
-
-    const red = data[index];
-    const green = data[index + 1];
-    const blue = data[index + 2];
-    const luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
-
-    let nextRed = luminance + (red - luminance) * saturation;
-    let nextGreen = luminance + (green - luminance) * saturation;
-    let nextBlue = luminance + (blue - luminance) * saturation;
-
-    const horizontalShift = ((x - centerX) / Math.max(1, width)) * 26;
-    nextRed += horizontalShift + 10;
-    nextGreen += 2;
-    nextBlue -= horizontalShift + 10;
-
-    const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-    const vignette = 1 - vignetteStrength * ((distance / Math.max(1, maxDistance)) ** 2);
-
-    nextRed = ((nextRed - 128) * contrast + 128) * brightness * vignette;
-    nextGreen = ((nextGreen - 128) * contrast + 128) * brightness * vignette;
-    nextBlue = ((nextBlue - 128) * contrast + 128) * brightness * vignette;
-
-    const grainCellX = Math.floor(x / 4);
-    const grainCellY = Math.floor(y / 4);
-    const grainSeed = (grainCellX * 13 + grainCellY * 17) % 29;
-    const grain = (grainSeed - 14) * 3.4;
-
-    data[index] = clamp(nextRed + grain);
-    data[index + 1] = clamp(nextGreen + grain * 0.85);
-    data[index + 2] = clamp(nextBlue + grain * 0.7);
-
-    processedPixels += 1;
-    if (processedPixels % YIELD_EVERY_PIXELS === 0) {
-      await yieldToMainThread();
-    }
-  }
-
-  return true;
-};
-
-const applySoftFilter = async (
-  data: Uint8Array,
-  width: number,
-  height: number,
-  shouldCancel?: () => boolean,
-): Promise<boolean> => {
-  const saturation = 0.78;
-  const contrast = 0.8;
-  const brightness = 1.13;
-  let processedPixels = 0;
-
-  for (let index = 0; index < data.length; index += 4) {
-    if (shouldCancel?.()) {
-      return false;
-    }
-
-    const pixelIndex = index / 4;
-    const x = pixelIndex % width;
-    const y = Math.floor(pixelIndex / width);
-    const red = data[index];
-    const green = data[index + 1];
-    const blue = data[index + 2];
-    const luminance = 0.299 * red + 0.587 * green + 0.114 * blue;
-
-    const saturatedR = luminance + (red - luminance) * saturation;
-    const saturatedG = luminance + (green - luminance) * saturation;
-    const saturatedB = luminance + (blue - luminance) * saturation;
-
-    const warmLift = 12;
-    let nextRed = ((saturatedR - 128) * contrast + 128) * brightness + warmLift;
-    let nextGreen = ((saturatedG - 128) * contrast + 128) * brightness + 3;
-    let nextBlue = ((saturatedB - 128) * contrast + 128) * brightness - 2;
-
-    const hash = (x * 19 + y * 23) % 4;
-    if (hash <= 2) {
-      nextRed = (nextRed * 3 + nextGreen) / 4;
-      nextGreen = (nextGreen * 3 + nextBlue) / 4;
-      nextBlue = (nextBlue * 3 + nextGreen) / 4;
-    }
-
-    data[index] = clamp(nextRed);
-    data[index + 1] = clamp(nextGreen);
-    data[index + 2] = clamp(nextBlue);
-
-    processedPixels += 1;
-    if (processedPixels % YIELD_EVERY_PIXELS === 0) {
-      await yieldToMainThread();
-    }
-  }
-
-  return true;
-};
-
+// --- メインエクスポート関数 ---
 export const applyFilmEffectToPhoto = async (
   uri: string,
   effectType: RewardFilmType | null,
-  options?: {
-    shouldCancel?: () => boolean;
-  },
+  options?: { shouldCancel?: () => boolean; },
 ): Promise<string> => {
-  const shouldApplyFilter = effectType === 'mono' || effectType === 'vivid' || effectType === 'retro' || effectType === 'disposable' || effectType === 'soft';
+  const targetEffects: RewardFilmType[] = ['mono', 'vivid', 'retro'];
+  const shouldApplyFilter = effectType && targetEffects.includes(effectType);
 
   try {
-    const normalizeActions: ImageManipulator.Action[] = [{ resize: { width: MAX_PROCESS_WIDTH } }];
+    if (!shouldApplyFilter || options?.shouldCancel?.()) return uri;
 
-    if (options?.shouldCancel?.()) {
-      return uri;
-    }
+    const actions: ImageManipulator.Action[] = [{ resize: { width: MAX_PROCESS_WIDTH } }];
+    const normalized = await ImageManipulator.manipulateAsync(uri, actions, { format: ImageManipulator.SaveFormat.JPEG, compress: 0.95, base64: true });
+    if (!normalized.base64 || options?.shouldCancel?.()) return uri;
 
-    const normalized = await ImageManipulator.manipulateAsync(
-      uri,
-      normalizeActions,
-      {
-        format: ImageManipulator.SaveFormat.JPEG,
-        compress: 0.95,
-        base64: true,
-      },
-    );
+    const base64 = normalized.base64.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedBase64 = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+    let decoded = jpeg.decode(toByteArray(paddedBase64), { useTArray: true });
+    if (!decoded?.data || options?.shouldCancel?.()) return uri;
 
-    if (options?.shouldCancel?.()) {
-      return uri;
-    }
+    let { data, width, height } = decoded;
 
-    if (!normalized.base64) {
-      return uri;
-    }
+    // 画像が縦長の場合、反時計回りに90度回転させて横長にする
+    if (width < height) {
+      const rotatedData = new Uint8Array(data.length);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const oldIdx = (y * width + x) * 4;
+          const newX = y;
+          const newY = width - 1 - x;
+          const newIdx = (newY * height + newX) * 4;
 
-    const normalizedBase64 = normalizeBase64Payload(normalized.base64);
-    let decoded = jpeg.decode(toByteArray(normalizedBase64), { useTArray: true });
-    if (!decoded?.data || !decoded.width || !decoded.height) {
-      decoded = jpeg.decode(toByteArray(normalized.base64), { useTArray: true });
+          rotatedData[newIdx] = data[oldIdx];         // R
+          rotatedData[newIdx + 1] = data[oldIdx + 1]; // G
+          rotatedData[newIdx + 2] = data[oldIdx + 2]; // B
+          rotatedData[newIdx + 3] = data[oldIdx + 3]; // A
+        }
+      }
+      data = rotatedData;
+      [width, height] = [height, width];
     }
-    if (!decoded?.data || !decoded.width || !decoded.height) {
-      return uri;
-    }
-
-    if (options?.shouldCancel?.()) {
-      return uri;
-    }
-    const pixelData = decoded.data;
 
     let processed = true;
-    if (shouldApplyFilter) {
-      if (effectType === 'mono') {
-        processed = await applyMonoFilter(pixelData, options?.shouldCancel);
-      } else if (effectType === 'vivid') {
-        processed = await applyVividFilter(pixelData, options?.shouldCancel);
-      } else if (effectType === 'soft') {
-        processed = await applySoftFilter(pixelData, decoded.width, decoded.height, options?.shouldCancel);
-      } else if (effectType === 'disposable') {
-        processed = await applyDisposableFilter(pixelData, decoded.width, decoded.height, options?.shouldCancel);
-      } else {
-        processed = await applyRetroFilter(pixelData, options?.shouldCancel);
-      }
+    if (effectType === 'mono') {
+      processed = await applyCinemaFilter(data, width, height, options?.shouldCancel);
+    } else if (effectType === 'vivid') {
+      processed = await applyVividFilter(data, options?.shouldCancel);
+    } else if (effectType === 'retro') {
+      processed = await applyRetroFilter(data, width, height, options?.shouldCancel);
     }
 
-    if (!processed || options?.shouldCancel?.()) {
-      return uri;
-    }
+    if (!processed || options?.shouldCancel?.()) return uri;
 
-    drawDateStamp(pixelData, decoded.width, decoded.height, new Date());
+    await applyGrainNoise(data, width, height);
 
-    const encoded = jpeg.encode(
-      {
-        data: pixelData,
-        width: decoded.width,
-        height: decoded.height,
-      },
-      96,
-    );
+    drawDateStamp(data, width, height, new Date());
 
-    if (options?.shouldCancel?.()) {
-      return uri;
-    }
+    const encoded = jpeg.encode({ data, width, height }, JPEG_QUALITY);
+    if (options?.shouldCancel?.()) return uri;
 
     const outputBase64 = fromByteArray(encoded.data);
     const basePath = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
-
-    if (!basePath) {
-      return uri;
-    }
-
+    if (!basePath) return uri;
     const targetDir = `${basePath}developed/`;
     await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
-
-    const outputLabel = shouldApplyFilter ? effectType : 'dated';
-    const outputUri = `${targetDir}${Date.now()}_${outputLabel}.jpg`;
-    await FileSystem.writeAsStringAsync(outputUri, outputBase64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    const outputUri = `${targetDir}${Date.now()}_${effectType}.jpg`;
+    await FileSystem.writeAsStringAsync(outputUri, outputBase64, { encoding: 'base64' });
 
     return outputUri;
   } catch (error) {
-    console.log('failed to apply film effect', error);
+    console.error('film effect failed:', error);
     return uri;
   }
 };

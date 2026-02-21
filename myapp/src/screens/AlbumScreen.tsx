@@ -26,6 +26,9 @@ import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 import { styles } from '../styles/AlbumScreen.styles';
 
+// ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
+const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
+
 interface AlbumScreenProps {
   onBack: () => void;
   onGoCamera: () => void;
@@ -41,7 +44,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     React.useEffect(effect, deps);
   };
 
-//export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack }) => {
   const GRID_COLUMNS = 3;
   const GRID_SIDE_PADDING = 12;
   const GRID_GAP = 8;
@@ -75,12 +77,18 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0, disposable: 0, soft: 0 });
+  
+  // ★修正: 初期ステートを3種類のみに限定
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
+    mono: 0, 
+    vivid: 0, 
+    retro: 0 
+  } as FilmInventory);
+  
   const [currentPage, setCurrentPage] = useState(0);
 
   const { checkForCommits } = useGithubCommits();
 
-  // Load film inventory
   useEffect(() => {
     const loadInventory = async () => {
       const inv = await getFilmInventory();
@@ -89,7 +97,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     loadInventory();
   }, []);
 
-  // Thumbnail size: fit 3 columns in the right panel, and also respect screen height
   const rightPanelWidth = screenWidth * 0.58;
   useEffect(() => {
     detailZoomScaleRef.current = detailZoomScale;
@@ -136,13 +143,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     const adjusted = clampTranslation(detailTranslateXRef.current, detailTranslateYRef.current, clamped);
     setDetailTranslateX(adjusted.x);
     setDetailTranslateY(adjusted.y);
-  }, [DETAIL_ZOOM_MAX, DETAIL_ZOOM_MIN]);
+  }, [DETAIL_ZOOM_MAX, DETAIL_ZOOM_MIN, clampTranslation]);
 
   const thumbnailSize = useMemo(() => {
     const totalGap = GRID_GAP * (GRID_COLUMNS - 1);
     const availableWidth = rightPanelWidth - GRID_SIDE_PADDING * 2 - totalGap;
     const sizeByWidth = Math.floor(availableWidth / GRID_COLUMNS);
-    // Also cap by screen height so a row doesn't overflow vertically
     const maxByHeight = Math.floor((screenHeight - 80) / 2.4);
     return Math.min(sizeByWidth, maxByHeight);
   }, [rightPanelWidth, screenHeight]);
@@ -222,12 +228,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     detailPanRef.current = null;
     detailPinchRef.current = null;
   }, [DETAIL_ZOOM_MIN, applyDetailZoomScale]);
-
-  const resetDetailZoom = useCallback(() => {
-    setDetailZoomScale(DETAIL_ZOOM_MIN);
-    setDetailTranslateX(0);
-    setDetailTranslateY(0);
-  }, [DETAIL_ZOOM_MIN]);
 
   const getTouchDistance = useCallback((touches: readonly NativeTouchEvent[]) => {
     if (touches.length < 2) {
@@ -372,7 +372,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     return () => subscription.remove();
   }, [handleBackLikeAction]);
 
-  // Swipe up → Camera
   const swipePanResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) =>
@@ -397,7 +396,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     return date.toLocaleString('ja-JP');
   }, [menuTargetPhoto]);
 
-  // テスト用: ネイティブ Modal が原因か切り分けるためのフォールバックオーバーレイ
   const useFallbackModal = true;
 
   const handleDelete = (photo: PhotoWithFilmName) => {
@@ -543,7 +541,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     ]);
   }, [load, selectedPhotoIds, selectedTab]);
 
-const handleCheckCommits = async () => {
+  const handleCheckCommits = async () => {
     const result = await checkForCommits();
     if (result) {
       Alert.alert('コミットチェック', result.message);
@@ -552,69 +550,11 @@ const handleCheckCommits = async () => {
     }
   };
 
-  const renderItem = ({ item, index }: { item: PhotoWithFilmName; index: number }) => (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => {
-        if (isSelectionMode) { //選択モード中、単押しで選択追加/解除
-          togglePhotoSelection(item.id);
-          return;
-        }
-        setSelectedPhotoIndex(index);
-        
-        setTimeout(() => {
-    setSelectedPhoto(item);
-    applyDetailZoomScale(DETAIL_ZOOM_MIN);
-  }, 50);
-
-        console.log('Photo pressed', item.id, index);
-      }}
-      onLongPress={() => {
-        if (isSelectionMode) {
-          togglePhotoSelection(item.id);
-          return;
-        }
-        setIsSelectionMode(true);
-        setSelectedPhotoIds([item.id]);
-      }}
-      style={[
-        styles.photoItem,
-        {
-          width: thumbnailSize,
-          marginRight: (index + 1) % GRID_COLUMNS === 0 ? 0 : GRID_GAP,
-        },
-      ]}
-    >
-      <View style={[styles.photoWrap, { width: thumbnailSize, height: thumbnailSize }]}>
-        <Image
-          source={{ uri: item.uri }}
-          style={[styles.photo, { width: thumbnailSize, height: thumbnailSize }]}
-          resizeMode="cover"
-          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
-        />
-        {selectedTab === 'undeveloped' && (
-          <BlurView
-            intensity={Platform.OS === 'ios' ? 22 : 0}
-            tint="default"
-            style={styles.photoBlurOverlay}
-          />
-        )}
-        {isSelectionMode && (
-          <View style={[styles.selectionBadge, selectedPhotoIds.includes(item.id) && styles.selectionBadgeActive]}>
-            <Text style={styles.selectionBadgeText}>{selectedPhotoIds.includes(item.id) ? '✓' : ''}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.metaText}>状態: {item.status === 'developed' ? '現像済' : '現像前'}</Text>
-      <Text style={styles.metaText}>フィルム: {item.film_name ?? '不明'}</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top-right toolbar: film inventory + refresh + settings */}
       <View style={[styles.topBar, { left: screenWidth * 0.42 }]}> 
-        {FILM_TYPES.map((type) => {
+        {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
+        {DISPLAY_FILMS.map((type) => {
           const meta = FILM_META[type];
           return (
             <View key={type} style={styles.filmBadge}>
@@ -632,9 +572,7 @@ const handleCheckCommits = async () => {
       </View>
 
       <View style={styles.mainLayout}>
-        {/* Left side: grip element + dashboard — swipe up here to go to Camera */}
         <View style={styles.leftPanel} {...swipePanResponder.panHandlers}>
-          {/* Grip element (decorative camera grip) */}
           <View style={styles.grip}>
             <View style={[styles.navSquare, styles.navSquareActive]} />
             <View style={styles.gripLine} />
@@ -643,7 +581,6 @@ const handleCheckCommits = async () => {
             <View style={styles.navSquare} />
           </View>
 
-          {/* Dashboard controls */}
           <View style={styles.dashboard}>
             <Text style={styles.systemText}>DEVIT  //  ALBUM</Text>
 
@@ -747,7 +684,6 @@ const handleCheckCommits = async () => {
           </View>
         </View>
 
-        {/* Right side: photo grid (固定6枚、スクロール無し) */}
         <View style={styles.rightPanel}>
           <View style={styles.gridContainer}>
             {Array.from({ length: 6 }).map((_, idx) => {
@@ -762,7 +698,6 @@ const handleCheckCommits = async () => {
                           togglePhotoSelection(item.id);
                           return;
                         }
-                        //openActionMenu(item);
                         setSelectedPhotoIndex(displayStartIndex + idx);
                         setSelectedPhoto(item);
                       }}
@@ -808,7 +743,6 @@ const handleCheckCommits = async () => {
         </View>
       </View>
 
-      {/* Detail modal (fallback overlay) */}
       {selectedPhoto && (
         <Pressable
           style={styles.detailModalBackdrop}
@@ -888,7 +822,6 @@ const handleCheckCommits = async () => {
         </Pressable>
       )}
 
-      {/* Action menu modal (フォールバック切り替え) */}
       {useFallbackModal ? (
         menuTargetPhoto !== null && (
           <Pressable 
@@ -921,7 +854,10 @@ const handleCheckCommits = async () => {
                 <Text style={styles.menuInfoValue}>{formattedCreatedAt}</Text>
 
                 <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
-                <Text style={styles.menuInfoValue}>{menuTargetPhoto?.film_name ?? '不明'}</Text>
+                {/* ★修正: メニュー内のフィルム名表示もmonoをCinemaと表示する */}
+                <Text style={styles.menuInfoValue}>
+                  {menuTargetPhoto?.film_name === 'mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
+                </Text>
               </View>
             </View>
           </Pressable>
@@ -954,7 +890,9 @@ const handleCheckCommits = async () => {
                 <Text style={styles.menuInfoValue}>{formattedCreatedAt}</Text>
 
                 <Text style={[styles.menuInfoLabel, styles.menuInfoTopMargin]}>使用フィルム</Text>
-                <Text style={styles.menuInfoValue}>{menuTargetPhoto?.film_name ?? '不明'}</Text>
+                <Text style={styles.menuInfoValue}>
+                  {menuTargetPhoto?.film_name === 'mono' ? 'Cinema' : (menuTargetPhoto?.film_name ?? '不明')}
+                </Text>
               </View>
             </View>
           </View>
@@ -963,5 +901,3 @@ const handleCheckCommits = async () => {
     </SafeAreaView>
   );
 };
-
-
