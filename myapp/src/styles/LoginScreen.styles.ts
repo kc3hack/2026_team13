@@ -1,4 +1,7 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+
+const scale = Platform.OS === 'android' ? 0.9 : 1;
+const s = (value: number) => Math.round(value * scale);
 
 export const styles = StyleSheet.create({
   container: {
@@ -6,51 +9,51 @@ export const styles = StyleSheet.create({
     backgroundColor: '#F5F6F8',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: Platform.OS === 'android' ? s(24) : s(20),
   },
   card: {
     width: '100%',
     maxWidth: 420,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 20,
+    borderRadius: s(14),
+    padding: s(20),
     borderWidth: 1,
     borderColor: '#E5E5E5',
   },
   title: {
-    fontSize: 26,
+    fontSize: s(26),
     fontWeight: '700',
     color: '#1E1E1E',
-    marginBottom: 20,
+    marginBottom: s(20),
   },
   inputGroup: {
-    marginBottom: 14,
+    marginBottom: s(14),
   },
   label: {
-    fontSize: 14,
+    fontSize: s(14),
     color: '#2D2D2D',
-    marginBottom: 6,
+    marginBottom: s(6),
     fontWeight: '600',
   },
   input: {
     borderWidth: 1,
     borderColor: '#D7D7D7',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: s(10),
+    paddingHorizontal: s(12),
+    paddingVertical: s(10),
     backgroundColor: '#FFFFFF',
     color: '#1F1F1F',
   },
   okButton: {
-    marginTop: 8,
-    borderRadius: 10,
+    marginTop: s(8),
+    borderRadius: s(10),
     backgroundColor: '#0A84FF',
-    paddingVertical: 12,
+    paddingVertical: s(12),
     alignItems: 'center',
   },
   okButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: s(16),
     fontWeight: '700',
   },
   disabledButton: {

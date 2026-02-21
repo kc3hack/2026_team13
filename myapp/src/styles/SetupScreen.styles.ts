@@ -1,9 +1,12 @@
-import { Dimensions, StyleSheet } from 'react-native';
+import { Dimensions, Platform, StyleSheet } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PARALLAX_FACTOR = 0.3;
 export const PARALLAX_MAX_SCROLL = 500;
 export const PARALLAX_OFFSET = PARALLAX_MAX_SCROLL * PARALLAX_FACTOR;
+const scale = Platform.OS === 'android' ? 0.9 : 1;
+const edgeInset = Platform.OS === 'android' ? 6 : 0;
+const s = (value: number) => Math.round(value * scale);
 
 export const styles = StyleSheet.create({
   container: {
@@ -21,9 +24,9 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 28,
-    paddingTop: 80,
-    paddingBottom: 100,
+    paddingHorizontal: Platform.OS === 'android' ? s(32) : s(28),
+    paddingTop: s(80),
+    paddingBottom: s(100) + edgeInset,
     flexGrow: 1,
   },
   filmsTop: {
@@ -32,101 +35,101 @@ export const styles = StyleSheet.create({
     left: 0,
     right: 0,
     width: SCREEN_WIDTH,
-    height: 50,
+    height: s(50),
     zIndex: 10,
     opacity: 0.85,
   },
   filmsBottom: {
     position: 'absolute',
-    bottom: 0,
+    bottom: edgeInset,
     left: 0,
     right: 0,
     width: SCREEN_WIDTH,
-    height: 50,
+    height: s(50),
     zIndex: 10,
     opacity: 0.85,
   },
   hero: {
     alignItems: 'center',
-    marginBottom: 28,
-    marginTop: 10,
+    marginBottom: s(28),
+    marginTop: s(10),
   },
   logo: {
     width: SCREEN_WIDTH * 0.55,
-    height: 100,
-    marginBottom: 8,
+    height: s(100),
+    marginBottom: s(8),
   },
   tagline: {
-    fontSize: 15,
+    fontSize: s(15),
     color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
-    lineHeight: 22,
-    letterSpacing: 1,
+    lineHeight: s(22),
+    letterSpacing: s(1),
   },
   formSection: {
-    marginBottom: 8,
+    marginBottom: s(8),
   },
   sectionHeader: {
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: 10,
+    paddingHorizontal: s(12),
+    paddingVertical: s(6),
+    marginBottom: s(10),
   },
   sectionHeaderText: {
-    fontSize: 20,
+    fontSize: s(20),
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 1,
+    letterSpacing: s(1),
   },
   sectionDescription: {
-    fontSize: 13,
+    fontSize: s(13),
     color: 'rgba(255,255,255,0.8)',
-    lineHeight: 20,
-    marginBottom: 20,
+    lineHeight: s(20),
+    marginBottom: s(20),
   },
   inputGroup: {
-    marginBottom: 18,
+    marginBottom: s(18),
   },
   label: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: s(6),
     color: '#FFFFFF',
   },
   optional: {
     color: 'rgba(255,255,255,0.6)',
     fontWeight: '400',
-    fontSize: 13,
+    fontSize: s(13),
   },
   input: {
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontSize: 15,
+    borderRadius: s(8),
+    paddingVertical: s(12),
+    paddingHorizontal: s(14),
+    fontSize: s(15),
     color: '#FFFFFF',
   },
   helperText: {
-    fontSize: 12,
+    fontSize: s(12),
     color: 'rgba(255,255,255,0.65)',
-    marginBottom: 6,
-    lineHeight: 18,
+    marginBottom: s(6),
+    lineHeight: s(18),
   },
   linkText: {
     color: '#FFB347',
     textDecorationLine: 'underline',
   },
   buttonWrap: {
-    marginTop: 20,
+    marginTop: s(20),
     alignItems: 'center',
-    paddingBottom: 8,
+    paddingBottom: s(8),
   },
   buttonTouchable: {
     width: SCREEN_WIDTH * 0.65,
-    height: 64,
+    height: s(64),
     justifyContent: 'center',
     alignItems: 'center',
   },

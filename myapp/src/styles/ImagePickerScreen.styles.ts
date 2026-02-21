@@ -1,10 +1,14 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+
+const scale = Platform.OS === 'android' ? 0.9 : 1;
+const edgeInset = Platform.OS === 'android' ? 6 : 0;
+const s = (value: number) => Math.round(value * scale);
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
-    paddingTop: 50,
+    paddingTop: s(50),
     backgroundColor: '#fff',
   },
   containerDark: {
@@ -18,43 +22,43 @@ export const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 36,
-    left: 20,
-    padding: 10,
+    top: s(36) + edgeInset,
+    left: s(20) + edgeInset,
+    padding: s(10),
     zIndex: 20,
   },
   backButtonText: {
-    fontSize: 16,
+    fontSize: s(16),
     color: '#007AFF',
     fontWeight: '600',
   },
   title: {
-    fontSize: 24,
+    fontSize: s(24),
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: s(16),
   },
   selectorWrap: {
     width: '100%',
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: Platform.OS === 'android' ? s(24) : s(20),
+    marginBottom: s(20),
   },
   selectorTitle: {
-    fontSize: 14,
+    fontSize: s(14),
     color: '#2A2A2A',
-    marginBottom: 8,
+    marginBottom: s(8),
     fontWeight: '600',
   },
   selectorRow: {
-    paddingRight: 20,
-    gap: 10,
+    paddingRight: s(20),
+    gap: s(10),
   },
   filmChip: {
     minWidth: 150,
     borderWidth: 1,
     borderColor: '#DADADA',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    borderRadius: s(12),
+    paddingVertical: s(10),
+    paddingHorizontal: s(12),
     backgroundColor: '#FFFFFF',
   },
   filmChipDark: {
@@ -72,17 +76,17 @@ export const styles = StyleSheet.create({
   filmChipTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    gap: s(6),
+    marginBottom: s(2),
   },
   filmChipImage: {
-    width: 22,
-    height: 22,
+    width: s(22),
+    height: s(22),
     resizeMode: 'contain',
   },
   filmChipTitle: {
     color: '#222222',
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
   },
   filmChipTitleSelected: {
@@ -93,7 +97,7 @@ export const styles = StyleSheet.create({
   },
   filmChipDesc: {
     color: '#666666',
-    fontSize: 12,
+    fontSize: s(12),
   },
   filmChipDescSelected: {
     color: '#3E3E3E',
@@ -103,22 +107,22 @@ export const styles = StyleSheet.create({
   },
   buttonContainer: {
     width: '100%',
-    paddingHorizontal: 28,
-    marginBottom: 20,
+    paddingHorizontal: Platform.OS === 'android' ? s(32) : s(28),
+    marginBottom: s(20) + edgeInset,
   },
   cameraButton: {
     width: '100%',
-    minHeight: 64,
-    borderRadius: 18,
+    minHeight: s(58),
+    borderRadius: s(18),
     backgroundColor: '#111111',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#2B2B2B',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: s(6) },
     shadowOpacity: 0.24,
-    shadowRadius: 10,
+    shadowRadius: s(10),
     elevation: 8,
   },
   cameraButtonDisabled: {
@@ -129,21 +133,21 @@ export const styles = StyleSheet.create({
   },
   cameraButtonText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: s(20),
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   imageWrap: {
     position: 'relative',
-    width: 200,
-    height: 200,
-    marginTop: 20,
-    borderRadius: 10,
+    width: s(200),
+    height: s(200),
+    marginTop: s(20),
+    borderRadius: s(10),
     overflow: 'hidden',
   },
   image: {
-    width: 200,
-    height: 200,
+    width: s(200),
+    height: s(200),
   },
   imageBlurOverlay: {
     ...StyleSheet.absoluteFillObject,

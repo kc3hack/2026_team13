@@ -1,4 +1,7 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+
+const scale = Platform.OS === 'android' ? 0.9 : 1;
+const s = (value: number) => Math.round(value * scale);
 
 export const styles = StyleSheet.create({
   darkroomRightPanel: {
@@ -29,16 +32,16 @@ export const styles = StyleSheet.create({
   // ... (残りのスタイルは変更なし) ...
   emptyBackgroundText: {
     color: '#333',
-    fontSize: 24,
+    fontSize: s(24),
     fontFamily: 'Courier',
     fontWeight: 'bold',
-    letterSpacing: 4,
+    letterSpacing: s(4),
   },
   overlayCenter: {
     backgroundColor: 'rgba(5, 5, 5, 0.7)',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    borderRadius: 16,
+    paddingVertical: s(30),
+    paddingHorizontal: s(20),
+    borderRadius: s(16),
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
@@ -47,60 +50,60 @@ export const styles = StyleSheet.create({
   },
   timerLabel: {
     color: '#8B0000',
-    fontSize: 14,
-    letterSpacing: 3,
-    marginBottom: 8,
+    fontSize: s(14),
+    letterSpacing: s(3),
+    marginBottom: s(8),
     fontWeight: '600',
     fontFamily: 'Courier',
   },
   timerText: {
     color: '#D41414',
-    fontSize: 54,
+    fontSize: s(54),
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: s(2),
     fontFamily: 'monospace',
     textShadowColor: 'rgba(200, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 15,
+    textShadowRadius: s(15),
     textAlign: 'center',
     width: '100%',
   },
   processingText: {
-    marginTop: 16,
+    marginTop: s(16),
     color: '#C5B7B7',
-    fontSize: 14,
-    letterSpacing: 1,
+    fontSize: s(14),
+    letterSpacing: s(1),
     fontFamily: 'Courier',
   },
   loadingWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 14,
+    gap: s(14),
     backgroundColor: '#050505',
   },
   loadingText: {
     color: '#E8D3D3',
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '600',
-    letterSpacing: 1,
+    letterSpacing: s(1),
   },
   statusValue: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: s(16),
     fontFamily: 'Courier',
     fontWeight: 'bold',
-    marginBottom: 24,
+    marginBottom: s(24),
   },
   infoValue: {
     color: '#ccc',
-    fontSize: 14,
+    fontSize: s(14),
     fontFamily: 'Courier',
   },
   actionBtnText: {
     color: '#ccc',
     fontFamily: 'Courier',
     fontWeight: 'bold',
-    fontSize: 13,
+    fontSize: s(13),
   }
 });

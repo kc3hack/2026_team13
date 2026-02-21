@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions } from 'react-native';
+import { Text, View, TouchableOpacity, SafeAreaView, Alert, PanResponder, Image, ScrollView, useWindowDimensions, Platform } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFonts } from 'expo-font';
 import {
@@ -52,16 +52,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
   const [selectedFilm, setSelectedFilm] = useState<RewardFilmType | null>(
     filmType && FILM_TYPES.includes(filmType as RewardFilmType) ? filmType as RewardFilmType : null
   );
+  const androidScale = Platform.OS === 'android' ? 0.9 : 1;
+  const androidInset = Platform.OS === 'android' ? 8 : 0;
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
   const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
 
-  const topBarLeft = width * 0.42;
-  const previewHeight = Math.max(140, Math.min(260, Math.round(height * 0.38)));
+  const topBarLeft = width * 0.42 + androidInset;
+  const previewHeight = Math.round(Math.max(140, Math.min(260, Math.round(height * 0.38))) * androidScale);
   const previewWidth = Math.round(previewHeight * (4 / 3));
   const gripHeight = previewHeight;
   const gripWidth = Math.max(64, Math.min(96, Math.round(previewHeight * 0.42)));
-  const shutterButtonSize = Math.max(44, Math.min(64, Math.round(previewHeight * 0.31)));
+  const shutterButtonSize = Math.round(Math.max(44, Math.min(64, Math.round(previewHeight * 0.31))) * androidScale);
   const shutterInnerSize = Math.round(shutterButtonSize * 0.78);
 
   const getFilmDisplayName = (type: RewardFilmType): string => type;

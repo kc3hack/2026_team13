@@ -1,6 +1,9 @@
 import { Platform, StyleSheet } from 'react-native';
 const GRID_COLUMNS = 3;
 const ITEM_MARGIN = 8;
+const scale = Platform.OS === 'android' ? 0.9 : 1;
+const edgeInset = Platform.OS === 'android' ? 6 : 0;
+const s = (value: number) => Math.round(value * scale);
 export const styles = StyleSheet.create({
   /* ── Root ── */
   container: {
@@ -11,53 +14,53 @@ export const styles = StyleSheet.create({
   /* ── Top bar (film badges + refresh + settings) ── */
   topBar: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? 20 : 10,
-    right: 0,
+    top: Platform.OS === 'android' ? s(20) + edgeInset : s(10),
+    right: edgeInset,
     left: '42%',
     zIndex: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingRight: 24,
-    gap: 8,
+    paddingRight: s(24),
+    gap: s(8),
   },
   filmBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#444',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    gap: 4,
+    borderRadius: s(6),
+    paddingHorizontal: s(8),
+    paddingVertical: s(3),
+    gap: s(4),
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   filmBadgeEmoji: {
-    fontSize: 16,
-    marginRight: 6,
+    fontSize: s(16),
+    marginRight: s(6),
   },
   filmBadgeImage: {
-    width: 18,
-    height: 18,
+    width: s(18),
+    height: s(18),
     resizeMode: 'contain',
   },
   filmBadgeCount: {
     color: '#fff',
     fontFamily: 'Courier',
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: 'bold',
   },
   topBarButton: {
     borderWidth: 1,
     borderColor: '#444',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: s(6),
+    paddingHorizontal: s(10),
+    paddingVertical: s(4),
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   topBarButtonText: {
     color: '#ccc',
-    fontSize: 18,
+    fontSize: s(18),
     fontFamily: 'Courier',
     fontWeight: 'bold',
   },
@@ -77,15 +80,15 @@ export const styles = StyleSheet.create({
 
   /* Navigation bar (left edge) */
   grip: {
-    width: 28,
+    width: s(28),
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    marginLeft: 4,
+    gap: s(10),
+    marginLeft: s(4),
   },
   navSquare: {
-    width: 8,
-    height: 8,
+    width: s(8),
+    height: s(8),
     borderWidth: 1,
     borderColor: '#555',
     backgroundColor: 'transparent',
@@ -96,7 +99,7 @@ export const styles = StyleSheet.create({
   },
   gripLine: {
     width: 1,
-    height: 10,
+    height: s(10),
     backgroundColor: '#333',
   },
 
@@ -104,38 +107,39 @@ export const styles = StyleSheet.create({
   dashboard: {
     flex: 1,
     alignSelf: 'stretch',
-    paddingLeft: 24,
-    paddingTop: 80,
+    paddingLeft: s(24),
+    paddingTop: s(80),
+    paddingRight: Platform.OS === 'android' ? s(8) : 0,
     justifyContent: 'flex-start',
   },
   systemText: {
     color: '#00ff00',
     fontFamily: 'Courier',
-    fontSize: 14,
-    marginBottom: 20,
+    fontSize: s(14),
+    marginBottom: s(20),
     letterSpacing: 1,
   },
   instruments: {
-    gap: 12,
+    gap: s(12),
   },
   label: {
     color: '#666',
     fontFamily: 'Courier',
-    fontSize: 12,
-    marginBottom: 4,
+    fontSize: s(12),
+    marginBottom: s(4),
   },
   buttonRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 4,
+    gap: s(8),
+    marginBottom: s(4),
   },
   dashboardBtn: {
     borderWidth: 1,
     borderColor: '#444',
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    borderRadius: 4,
+    paddingVertical: s(5),
+    paddingHorizontal: s(14),
+    borderRadius: s(4),
   },
   dashboardBtnActive: {
     borderColor: '#fff',
@@ -144,7 +148,7 @@ export const styles = StyleSheet.create({
   btnText: {
     color: '#888',
     fontFamily: 'cinecaption226',
-    fontSize: 13,
+    fontSize: s(13),
   },
   btnTextActive: {
     color: '#fff',
@@ -155,7 +159,7 @@ export const styles = StyleSheet.create({
   dangerBtnText: {
     color: '#ff4444',
     fontFamily: 'cinecaption226',
-    fontSize: 13,
+    fontSize: s(13),
   },
 
   /* ── Pagination controls ── */
@@ -163,15 +167,15 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 8,
+    gap: s(12),
+    paddingVertical: s(8),
   },
   paginationButton: {
     borderWidth: 1,
     borderColor: '#444',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    paddingVertical: s(6),
+    paddingHorizontal: s(12),
+    borderRadius: s(4),
   },
   paginationButtonDisabled: {
     opacity: 0.3,
@@ -179,7 +183,7 @@ export const styles = StyleSheet.create({
   paginationButtonText: {
     color: '#fff',
     fontFamily: 'cinecaption226',
-    fontSize: 16,
+    fontSize: s(16),
     fontWeight: 'bold',
   },
   paginationButtonTextDisabled: {
@@ -188,23 +192,23 @@ export const styles = StyleSheet.create({
   paginationText: {
     color: '#ccc',
     fontFamily: 'Courier',
-    fontSize: 13,
-    minWidth: 50,
+    fontSize: s(13),
+    minWidth: s(50),
     textAlign: 'center',
   },
 
   /* ── Right panel (photo grid) ── */
   rightPanel: {
     flex: 0.58,
-    paddingTop: 50,
+    paddingTop: s(50),
   },
   list: {
-    paddingHorizontal: 12,
-    paddingBottom: 24,
+    paddingHorizontal: Platform.OS === 'android' ? s(14) : s(12),
+    paddingBottom: s(24) + edgeInset,
   },
   listRow: {
     justifyContent: 'flex-start',
-    marginBottom: 8,
+    marginBottom: s(8),
   },
 
   /* Photo items */
@@ -214,7 +218,7 @@ export const styles = StyleSheet.create({
   photoWrap: {
     position: 'relative',
     width: '100%',
-    borderRadius: 4,
+    borderRadius: s(4),
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
   },
@@ -228,11 +232,11 @@ export const styles = StyleSheet.create({
   },
   selectionBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: s(6) + edgeInset,
+    right: s(6) + edgeInset,
+    width: s(20),
+    height: s(20),
+    borderRadius: s(10),
     borderWidth: 1,
     borderColor: '#FFFFFF',
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -246,18 +250,18 @@ export const styles = StyleSheet.create({
   },
   selectionBadgeText: {
     color: '#000',
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '700',
-    lineHeight: 14,
+    lineHeight: s(14),
   },
 
   /* Photo meta text */
   metaText: {
-    fontSize: 10,
+    fontSize: s(10),
     color: '#888',
     fontFamily: 'cinecaption226',
-    lineHeight: 14,
-    marginTop: 1,
+    lineHeight: s(14),
+    marginTop: s(1),
   },
 
   /* Empty state */
@@ -269,7 +273,7 @@ export const styles = StyleSheet.create({
   emptyText: {
     color: '#666',
     fontFamily: 'cinecaption226',
-    fontSize: 14,
+    fontSize: s(14),
   },
 
   /* ── Detail modal ── */
@@ -278,43 +282,43 @@ export const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   detailHeader: {
-    height: 52,
-    paddingHorizontal: 18,
+    height: s(52),
+    paddingHorizontal: s(18),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   detailHeaderButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: s(8),
+    paddingVertical: s(6),
   },
   detailHeaderText: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: s(24),
     fontWeight: '600',
   },
   detailZoomControls: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 2,
-    marginBottom: 6,
+    gap: s(10),
+    marginTop: s(2),
+    marginBottom: s(6),
   },
   detailZoomButton: {
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
     backgroundColor: 'rgba(20,20,20,0.75)',
-    borderRadius: 12,
-    minWidth: 48,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: s(12),
+    minWidth: s(48),
+    paddingHorizontal: s(10),
+    paddingVertical: s(6),
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailZoomButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '700',
   },
   detailImageWrap: {
@@ -347,88 +351,88 @@ export const styles = StyleSheet.create({
   },
   menuSheet: {
     backgroundColor: '#1a1a1a',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
+    borderTopLeftRadius: s(16),
+    borderTopRightRadius: s(16),
+    paddingHorizontal: Platform.OS === 'android' ? s(24) : s(20),
+    paddingTop: s(16),
+    paddingBottom: s(24) + edgeInset,
   },
   menuTitle: {
-    fontSize: 16,
+    fontSize: s(16),
     color: '#fff',
     fontFamily: 'cinecaption226',
-    marginBottom: 8,
+    marginBottom: s(8),
   },
   menuActionButton: {
-    paddingVertical: 12,
+    paddingVertical: s(12),
     borderBottomWidth: 1,
     borderBottomColor: '#333',
   },
   menuActionText: {
-    fontSize: 15,
+    fontSize: s(15),
     color: '#ccc',
     fontFamily: 'cinecaption226',
   },
   menuDangerButton: {
-    marginTop: 2,
+    marginTop: s(2),
   },
   menuDangerText: {
-    fontSize: 15,
+    fontSize: s(15),
     color: '#ff4444',
     fontFamily: 'cinecaption226',
   },
   menuInfoWrap: {
-    marginTop: 14,
+    marginTop: s(14),
   },
   menuInfoLabel: {
-    fontSize: 12,
+    fontSize: s(12),
     color: '#666',
     fontFamily: 'cinecaption226',
   },
   menuInfoTopMargin: {
-    marginTop: 10,
+    marginTop: s(10),
   },
   menuInfoValue: {
-    fontSize: 14,
+    fontSize: s(14),
     color: '#ccc',
     fontFamily: 'cinecaption226',
-    marginTop: 2,
+    marginTop: s(2),
   },
   detailSingleWrap: {
   flex: 1,
   backgroundColor: '#000', // モーダル背景（必要に応じて変更）
   alignItems: 'center',
   justifyContent: 'center',
-  paddingHorizontal: 16,
+    paddingHorizontal: s(16),
 },
 detailImageHeader: {
   width: '100%',
-  paddingVertical: 8,
+    paddingVertical: s(8),
   alignItems: 'center',
 },
 detailHeaderTitle: {
   color: '#fff',
-  fontSize: 16,
+    fontSize: s(16),
   fontWeight: '600',
 },
 detailHeaderDate: {
   color: '#ccc',
-  fontSize: 12,
-  marginTop: 4,
+    fontSize: s(12),
+    marginTop: s(4),
 },
 detailFooter: {
   width: '100%',
   flexDirection: 'row',
   justifyContent: 'space-between',
-  paddingVertical: 12,
-  paddingHorizontal: 16,
+    paddingVertical: s(12),
+    paddingHorizontal: s(16),
 },
 detailFooterButton: {
-  padding: 8,
+    padding: s(8),
 },
 detailFooterText: {
   color: '#fff',
-  fontSize: 14,
+    fontSize: s(14),
 },
 
   
@@ -444,7 +448,7 @@ detailFooterText: {
   gridImage: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 8,
+    borderRadius: s(8),
     backgroundColor: '#1f1f1f',
   },
 
@@ -464,40 +468,41 @@ detailFooterText: {
     right: 0,
     bottom: 0,
     zIndex: -1,
-  },  detailModalNavButton: {
+  },
+  detailModalNavButton: {
     position: 'absolute',
     top: '50%',
-    marginTop: -70,
+    marginTop: -s(70),
     zIndex: 11,
-    width: 70,
-    height: 140,
+    width: s(70),
+    height: s(140),
     justifyContent: 'center',
     alignItems: 'center',
   },
   detailModalNavButtonLeft: {
-    left: 16,
+    left: s(16) + edgeInset,
   },
   detailModalNavButtonRight: {
-    right: 16,
+    right: s(16) + edgeInset,
   },
   detailModalNavButtonText: {
     color: '#fff',
-    fontSize: 60,
+    fontSize: s(60),
     fontWeight: 'bold',
   },
   detailModalCloseButton: {
     position: 'absolute',
-    top: 20,
-    left: 20,
+    top: s(20) + edgeInset,
+    left: s(20) + edgeInset,
     zIndex: 12,
-    width: 50,
-    height: 50,
+    width: s(50),
+    height: s(50),
     justifyContent: 'center',
     alignItems: 'center',
   },
   detailModalCloseButtonText: {
     color: '#fff',
-    fontSize: 36,
+    fontSize: s(36),
     fontWeight: 'bold',
   },  
 });
