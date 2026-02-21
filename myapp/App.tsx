@@ -3,6 +3,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar, BackHandler, Platform, PanResponder, ActivityIndicator, Animated } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useFonts } from 'expo-font';
+import {
+  CourierPrime_400Regular,
+  CourierPrime_700Bold,
+} from '@expo-google-fonts/courier-prime';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SetupScreen } from './src/screens/SetupScreen';
 import { ImagePickerScreen } from './src/screens/ImagePickerScreen';
@@ -30,7 +34,10 @@ export default function App() {
   // ★ 変更: 7セグメントフォントを追加
   const [fontsLoaded] = useFonts({
     cinecaption226: require('./assets/fonts/cinecaption226.ttf'),
-    'DSEG7Classic-Regular': require('./assets/fonts/DSEG7Classic-Regular.ttf'), 
+    'DSEG7Classic-Regular': require('./assets/fonts/DSEG7Classic-Regular.ttf'),
+    Courier: CourierPrime_400Regular,
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
   });
   
   const [pendingDevelopPhoto, setPendingDevelopPhoto] = useState<PendingDevelopPhoto | null>(null);
