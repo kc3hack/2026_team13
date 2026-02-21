@@ -19,6 +19,7 @@ interface DarkroomScreenProps {
 
 const SESSION_SECONDS = 10;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
+let lastPlayedDarkroomBgmIndex: number | null = null;
 const DARKROOM_ENVIRONMENT_BGMS: number[] = [
   require('../../assets/sounds/environment/VSQSE_0701_morning_01.mp3'),
   require('../../assets/sounds/environment/VSQSE_0713_rice_field_04.mp3'),
@@ -338,8 +339,14 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (waterSoundRef.current) return;
       try {
         if (selectedDarkroomBgmRef.current === null) {
-          const randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
+          let randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
+          if (DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null) {
+            while (randomIndex === lastPlayedDarkroomBgmIndex) {
+              randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
+            }
+          }
           selectedDarkroomBgmRef.current = DARKROOM_ENVIRONMENT_BGMS[randomIndex];
+          lastPlayedDarkroomBgmIndex = randomIndex;
         }
 
         const { sound } = await Audio.Sound.createAsync(
