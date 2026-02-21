@@ -37,8 +37,10 @@ const DARKROOM_ENVIRONMENT_BGMS: number[] = [
   require('../../assets/sounds/environment/VSQSE_1010_room_ambient_05.mp3'),
   require('../../assets/sounds/environment/VSQSE_1042_old_growth_forest_02.mp3'),
 ];
+const DARKROOM_THUNDER_BGM_INDEX = 5;
+const DARKROOM_THUNDER_WEIGHT = 1;
+const DARKROOM_NORMAL_WEIGHT = 3;
 
-// ★追加: 確実に3種類だけをUIに表示するためのフィルター配列
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
 interface DevelopingPhoto {
@@ -72,14 +74,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [previewIndex, setPreviewIndex] = useState(0);
   const [useNativeRipple, setUseNativeRipple] = useState(false);
   const [rightPanelDim, setRightPanelDim] = useState({ width: 0, height: 0 });
-  
-  // ★修正: 初期ステートを3種類のみに限定
-  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
-    mono: 0, 
-    vivid: 0, 
-    retro: 0 
-  } as FilmInventory);
-  
+  const [filmInventory, setFilmInventory] = useState<FilmInventory>({ mono: 0, vivid: 0, retro: 0 } as FilmInventory);
   const [developingCount, setDevelopingCount] = useState(0);
   const [totalPendingCount, setTotalPendingCount] = useState(0);
 
@@ -193,7 +188,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       clearTimeout(waterTouchStopTimerRef.current);
       waterTouchStopTimerRef.current = null;
     }
-
     const currentSound = waterTouchSoundRef.current;
     if (!currentSound) return;
     waterTouchSoundRef.current = null;
@@ -203,9 +197,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
   const playWaterTouchSound = useCallback(async () => {
     const now = Date.now();
-    if (now - lastWaterTouchAtRef.current < 100) {
-      return;
-    }
+    if (now - lastWaterTouchAtRef.current < 100) return;
     lastWaterTouchAtRef.current = now;
 
     try {
@@ -216,12 +208,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         );
         waterTouchSoundRef.current = sound;
       }
-
       if (waterTouchStopTimerRef.current) {
         clearTimeout(waterTouchStopTimerRef.current);
         waterTouchStopTimerRef.current = null;
       }
-
       await waterTouchSoundRef.current.setPositionAsync(0);
       await waterTouchSoundRef.current.playAsync();
 
@@ -229,9 +219,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         const currentSound = waterTouchSoundRef.current;
         if (!currentSound) return;
         void (async () => {
-          try {
-            await currentSound.stopAsync();
-          } catch {}
+          try { await currentSound.stopAsync(); } catch {}
         })();
         waterTouchStopTimerRef.current = null;
       }, 5000);
@@ -247,8 +235,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (cancelProcessingRef.current) return updatedRows;
       try {
         const resolvedEffectType = await getFilmEffectTypeById(targetPhoto.filmId);
-        
-        // ★修正: 使わなくなった使い捨て・ソフトの条件式を削除
         const effectType =
           resolvedEffectType
           ?? (targetPhoto.filmId === 1 || targetPhoto.filmId === 11
@@ -262,6 +248,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         const processedUri = await applyFilmEffectToPhoto(targetPhoto.uri, effectType, {
           shouldCancel: () => cancelProcessingRef.current,
         });
+
         if (cancelProcessingRef.current) return updatedRows;
         if (processedUri !== targetPhoto.uri) {
           targetPhoto.uri = processedUri;
@@ -291,6 +278,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           aspectRatio: await resolveAspectRatio(item.uri),
         })),
       );
+
       await completeDevelopingSession(rows.map((item) => item.id));
       const nextUndeveloped = await getUndevelopedPhotosOldest(MAX_DEVELOPING_BATCH);
 
@@ -312,12 +300,15 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       setCompletionMessage(
         nextUndeveloped.length > 0
           ? '現像完了。次の写真を現像できます'
-          : '現像完了。現像対象の写真がありません'
+          : '現像完了。現像対象の写真がありません',
       );
       setIsSessionCompleted(true);
       setResultPhotos(resultRows);
       setIsResultModalVisible(resultRows.length > 0);
-      if (activePhoto) delete globalDarkroomCache[activePhoto.id];
+
+      if (rows[0]) {
+        delete globalDarkroomCache[rows[0].id];
+      }
       await refreshPhotoCounts();
     } catch (error) {
       console.log('failed to finalize developing session', error);
@@ -325,7 +316,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       setIsFinishingSession(false);
       await stopAndUnloadWaterSound();
     }
-  }, [runPhotoEffects, stopAndUnloadWaterSound, activePhoto, refreshPhotoCounts]);
+  }, [refreshPhotoCounts, resolveAspectRatio, runPhotoEffects, stopAndUnloadWaterSound]);
 
   useEffect(() => {
     let isActive = true;
@@ -350,32 +341,32 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
             })),
           );
           setIsSessionStarted(true);
-          
+
           const cached = globalDarkroomCache[developing[0].id];
           if (cached) {
-             setRemainingSeconds(cached.remaining);
-             setIsPaused(cached.isPaused);
+            setRemainingSeconds(cached.remaining);
+            setIsPaused(cached.isPaused);
           } else {
-             setRemainingSeconds(SESSION_SECONDS);
-             setIsPaused(false);
+            setRemainingSeconds(SESSION_SECONDS);
+            setIsPaused(false);
           }
           return;
         }
 
-          const undeveloped = await getUndevelopedPhotosOldest(MAX_DEVELOPING_BATCH);
+        const undeveloped = await getUndevelopedPhotosOldest(MAX_DEVELOPING_BATCH);
         if (!isActive) return;
 
         if (undeveloped.length > 0) {
-            setDevelopingPhotos(
-             undeveloped.map((item) => ({
+          setDevelopingPhotos(
+            undeveloped.map((item) => ({
               id: item.id,
               uri: item.uri,
               filmId: item.film_id,
-             })),
-            );
+            })),
+          );
         } else {
-           setDevelopingPhotos([]);
-           setCompletionMessage('現像対象の写真がありません');
+          setDevelopingPhotos([]);
+          setCompletionMessage('現像対象の写真がありません');
         }
         setRemainingSeconds(SESSION_SECONDS);
         setIsSessionStarted(false);
@@ -385,8 +376,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         if (isActive) setIsPreparing(false);
       }
     };
+
     void loadSession();
-    return () => { isActive = false; };
+    return () => {
+      isActive = false;
+    };
   }, [refreshPhotoCounts]);
 
   useEffect(() => {
@@ -404,6 +398,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   }, [isSessionStarted, isSessionCompleted, isPaused]);
 
   useEffect(() => {
+    // タイマーが0になったら完了処理を呼ぶ
     if (isSessionStarted && remainingSeconds === 0 && !isSessionCompleted && !isFinishingSession && developingPhotos.length > 0) {
       void finalizeSession(developingPhotos);
     }
@@ -469,12 +464,24 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (waterSoundRef.current) return;
       try {
         if (selectedDarkroomBgmRef.current === null) {
-          let randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
-          if (DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null) {
-            while (randomIndex === lastPlayedDarkroomBgmIndex) {
-              randomIndex = Math.floor(Math.random() * DARKROOM_ENVIRONMENT_BGMS.length);
-            }
-          }
+          const candidateIndices = DARKROOM_ENVIRONMENT_BGMS
+            .map((_, index) => index)
+            .filter((index) =>
+              !(DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null && index === lastPlayedDarkroomBgmIndex),
+            );
+
+          const weightedIndices = candidateIndices.flatMap((index) => {
+            const weight = index === DARKROOM_THUNDER_BGM_INDEX
+              ? DARKROOM_THUNDER_WEIGHT
+              : DARKROOM_NORMAL_WEIGHT;
+            return Array(weight).fill(index);
+          });
+
+          const randomPool = weightedIndices.length > 0
+            ? weightedIndices
+            : candidateIndices;
+          const randomIndex = randomPool[Math.floor(Math.random() * randomPool.length)];
+
           selectedDarkroomBgmRef.current = DARKROOM_ENVIRONMENT_BGMS[randomIndex];
           lastPlayedDarkroomBgmIndex = randomIndex;
         }
@@ -551,7 +558,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         const startedIds = await ensureQueuedPhotosStarted(nextPhotos.map((item) => item.id));
         setDevelopingPhotos((prev) => prev.filter((item) => startedIds.includes(item.id)));
         setIsSessionStarted(startedIds.length > 0);
+                
         setPreviewIndex(0);
+
+        
         await refreshPhotoCounts();
       } catch (error) {
         console.log('failed to start next developing session', error);
@@ -598,7 +608,6 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   return (
     <SafeAreaView style={albumStyles.container} {...swipePanResponder.panHandlers}>
       <View style={albumStyles.topBar}>
-        {/* ★修正: DISPLAY_FILMSを使って3種類のみ表示 */}
         {DISPLAY_FILMS.map((type) => {
           const meta = FILM_META[type];
           return (

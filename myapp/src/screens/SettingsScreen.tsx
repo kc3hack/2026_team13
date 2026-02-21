@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  ScrollView,
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import {
@@ -125,19 +126,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
         <View style={styles.leftPanel}>
           <View style={styles.gripDecor} />
 
-          <View style={styles.dashboard}>
+          <ScrollView style={styles.dashboard} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-start' }}>
             <Text style={[styles.systemText, regularFont]}>DEVIT // SETTINGS_CONFIG</Text>
-            <View style={styles.statusBlock}>
-              <Text style={[styles.systemTextdummy, regularFont]}>MODE: AUTH LINK</Text>
-              <Text style={[styles.systemTextdummy, regularFont]}>STATUS: ONLINE</Text>
-            </View>
-
-            <Text style={[styles.sectionTitle, boldFont]}>DEBUG FILM TOOLS</Text>
+            <Text style={[styles.systemTextdummy, regularFont, { marginBottom: 12 }]}>MODE: AUTH LINK</Text>
+            <Text style={[styles.systemTextdummy, regularFont, { marginBottom: 18 }]}>STATUS: ONLINE</Text>
+            <Text style={[styles.sectionTitle, boldFont, { marginBottom: 16 }]}>DEBUG FILM TOOLS</Text>
             <View style={styles.debugCardLeft}>
               <View style={styles.debugToggleRow}>
                 <Text style={[styles.debugToggleLabel, regularFont]}>WATER FX (DEBUG)</Text>
                 <View style={styles.debugToggleRight}>
-                  <Text style={[styles.debugToggleValue, regularFont]}>
+                  <Text style={[styles.debugToggleValue, regularFont]}> 
                     {useNativeRipple ? 'NATIVE' : 'JQUERY'}
                   </Text>
                   <Switch
@@ -174,7 +172,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSave, onCancel
                 ))}
               </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
 
         <View style={styles.rightPanel}>
