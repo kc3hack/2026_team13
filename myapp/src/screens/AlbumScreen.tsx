@@ -210,6 +210,10 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     () => sortedPhotos.filter((photo) => selectedPhotoIds.includes(photo.id)),
     [sortedPhotos, selectedPhotoIds],
   );
+  const shouldShowSelectionActions = isSelectionMode && selectedPhotoIds.length > 0;
+  const selectionModeButtonLabel = Platform.OS === 'android'
+    ? (isSelectionMode ? '選択解除' : '選択モード')
+    : (isSelectionMode ? '選択モード解除' : '選択モードにする');
 
   const ITEMS_PER_PAGE = 6;
   const totalPages = useMemo(() => {
@@ -772,19 +776,60 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                 ))}
               </View>
 
-              <Text style={styles.label}>[ MODE ]</Text>
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  onPress={toggleSelectionMode}
-                  style={[styles.dashboardBtn, isSelectionMode && styles.dashboardBtnActive]}
-                >
-                  <Text style={[styles.btnText, isSelectionMode && styles.btnTextActive]}>
-                    {isSelectionMode ? '選択モード解除' : '選択モードにする'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              {Platform.OS === 'android' ? (
+                <>
+                  <View style={styles.modeActionHeaderRowAndroid}>
+                    <Text style={styles.label}>[ MODE ]</Text>
+                    {shouldShowSelectionActions && (
+                      <Text style={styles.modeActionHeaderLabelAndroid}>[ ACTION ] {selectedPhotoIds.length}枚</Text>
+                    )}
+                  </View>
 
-              {isSelectionMode && selectedPhotoIds.length > 0 && (
+                  <View style={styles.modeActionControlsRowAndroid}>
+                    <TouchableOpacity
+                      onPress={toggleSelectionMode}
+                      style={[styles.dashboardBtn, isSelectionMode && styles.dashboardBtnActive]}
+                    >
+                      <Text style={[styles.btnText, isSelectionMode && styles.btnTextActive]}>
+                        {selectionModeButtonLabel}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {shouldShowSelectionActions && (
+                      <View style={[styles.buttonRow, styles.modeActionButtonsRowAndroid]}>
+                        <TouchableOpacity
+                          onPress={() => void handleSaveSelectedPhotos()}
+                          style={styles.dashboardBtn}
+                        >
+                          <Text style={styles.btnText}>保存</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={handleDeleteSelectedPhotos}
+                          style={[styles.dashboardBtn, styles.dangerBtn]}
+                        >
+                          <Text style={styles.dangerBtnText}>削除</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>[ MODE ]</Text>
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity
+                      onPress={toggleSelectionMode}
+                      style={[styles.dashboardBtn, isSelectionMode && styles.dashboardBtnActive]}
+                    >
+                      <Text style={[styles.btnText, isSelectionMode && styles.btnTextActive]}>
+                        {selectionModeButtonLabel}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {Platform.OS !== 'android' && shouldShowSelectionActions && (
                 <>
                   <Text style={styles.label}>[ ACTION ] {selectedPhotoIds.length}枚選択中</Text>
                   <View style={styles.buttonRow}>

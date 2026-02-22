@@ -136,6 +136,31 @@ export const styles = StyleSheet.create({
     gap: Platform.OS === 'android' ? c(8) : s(8),
     marginBottom: Platform.OS === 'android' ? c(4) : s(4),
   },
+  modeActionHeaderRowAndroid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: c(20),
+    marginBottom: c(2),
+  },
+  modeActionHeaderLabelAndroid: {
+    color: '#666',
+    fontFamily: 'Courier',
+    fontSize: c(11),
+    letterSpacing: 0.5,
+  },
+  modeActionControlsRowAndroid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: c(12),
+    marginBottom: c(2),
+  },
+  modeActionButtonsRowAndroid: {
+    marginTop: 0,
+    marginBottom: 0,
+    marginLeft: 0,
+    gap: c(8),
+  },
   dashboardBtn: {
     borderWidth: 1,
     borderColor: '#444',
