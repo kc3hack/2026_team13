@@ -294,11 +294,19 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
     try {
       const beforeById = new Map(rows.map((item) => [item.id, item.uri]));
+      const undevelopedPreviewById = new Map(
+        await Promise.all(
+          rows.map(async (item) => [
+            item.id,
+            item.previewUri ?? await getUndevelopedPreviewUriByPhotoId(item.id),
+          ] as const),
+        ),
+      );
       const processedRows = await runPhotoEffects(rows);
       const resultRows: ResultPhoto[] = await Promise.all(
         processedRows.map(async (item) => ({
           id: item.id,
-          beforeUri: beforeById.get(item.id) ?? item.uri,
+          beforeUri: undevelopedPreviewById.get(item.id) ?? beforeById.get(item.id) ?? item.uri,
           afterUri: item.uri,
           aspectRatio: await resolveAspectRatio(item.uri),
         })),
