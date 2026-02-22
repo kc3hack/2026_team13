@@ -670,21 +670,30 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':');
   }, [remainingSeconds]);
 
-  const swipePanResponder = useRef(
-    PanResponder.create({
+  const swipePanResponder = useMemo(
+    () => PanResponder.create({
       onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        if (isResultModalVisible) {
+          return false;
+        }
+
         const isVerticalSwipe = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         const isSwipingDown = gestureState.dy > 20;
         return isVerticalSwipe && isSwipingDown;
       },
       onPanResponderRelease: (_, gestureState) => {
+        if (isResultModalVisible) {
+          return;
+        }
+
         if (gestureState.dy > 50) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           onBack();
         }
       },
-    })
-  ).current;
+    }),
+    [isResultModalVisible, onBack],
+  );
 
   if (isPreparing) {
     return (
