@@ -26,20 +26,11 @@ interface DarkroomScreenProps {
 const SESSION_SECONDS = 10;
 const MAX_DEVELOPING_BATCH = 5;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
-let lastPlayedDarkroomBgmIndex: number | null = null;
-const DARKROOM_ENVIRONMENT_BGMS: number[] = [
-  require('../../assets/sounds/environment/VSQSE_0701_morning_01.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0713_rice_field_04.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0744_rain_06_bird.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0855_turtledove.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0967_singing_of_insect_08.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0988_thunder_02.mp3'),
-  require('../../assets/sounds/environment/VSQSE_1010_room_ambient_05.mp3'),
-  require('../../assets/sounds/environment/VSQSE_1042_old_growth_forest_02.mp3'),
-];
-const DARKROOM_THUNDER_BGM_INDEX = 5;
-const DARKROOM_THUNDER_WEIGHT = 1;
-const DARKROOM_NORMAL_WEIGHT = 3;
+const DARKROOM_WHITE_NOISE_BGM = require('../../assets/sounds/bg_white_noise1.mp3');
+const DARKROOM_WHITE_NOISE_VOLUME = 0.04;
+const DARKROOM_MIXDOWN_BGM = require('../../assets/sounds/Mixdown.mp3');
+const DARKROOM_MIXDOWN_MIN_INTERVAL_MS = 5000;
+const DARKROOM_MIXDOWN_MAX_INTERVAL_MS = 10000;
 
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
@@ -83,6 +74,9 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const preProcessedUrisRef = useRef<Map<number, string>>(new Map());
 
   const waterSoundRef = useRef<Audio.Sound | null>(null);
+  const whiteNoiseSoundRef = useRef<Audio.Sound | null>(null);
+  const mixdownSoundRef = useRef<Audio.Sound | null>(null);
+  const mixdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedDarkroomBgmRef = useRef<number | null>(null);
   const waterTouchSoundRef = useRef<Audio.Sound | null>(null);
   const waterTouchStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -211,6 +205,26 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     try { await currentSound.unloadAsync(); } catch {}
   }, []);
 
+  const stopAndUnloadWhiteNoiseSound = useCallback(async () => {
+    const currentSound = whiteNoiseSoundRef.current;
+    if (!currentSound) return;
+    whiteNoiseSoundRef.current = null;
+    try { await currentSound.stopAsync(); } catch {}
+    try { await currentSound.unloadAsync(); } catch {}
+  }, []);
+
+  const stopAndUnloadMixdownSound = useCallback(async () => {
+    if (mixdownTimerRef.current) {
+      clearTimeout(mixdownTimerRef.current);
+      mixdownTimerRef.current = null;
+    }
+    const currentSound = mixdownSoundRef.current;
+    if (!currentSound) return;
+    mixdownSoundRef.current = null;
+    try { await currentSound.stopAsync(); } catch {}
+    try { await currentSound.unloadAsync(); } catch {}
+  }, []);
+
   const stopAndUnloadWaterTouchSound = useCallback(async () => {
     if (waterTouchStopTimerRef.current) {
       clearTimeout(waterTouchStopTimerRef.current);
@@ -224,36 +238,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   }, []);
 
   const playWaterTouchSound = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastWaterTouchAtRef.current < 100) return;
-    lastWaterTouchAtRef.current = now;
-
-    try {
-      if (!waterTouchSoundRef.current) {
-        const { sound } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/VSQSE_0604_water_splash_01.mp3'),
-          { shouldPlay: false, isLooping: false, volume: 0.2 },
-        );
-        waterTouchSoundRef.current = sound;
-      }
-      if (waterTouchStopTimerRef.current) {
-        clearTimeout(waterTouchStopTimerRef.current);
-        waterTouchStopTimerRef.current = null;
-      }
-      await waterTouchSoundRef.current.setPositionAsync(0);
-      await waterTouchSoundRef.current.playAsync();
-
-      waterTouchStopTimerRef.current = setTimeout(() => {
-        const currentSound = waterTouchSoundRef.current;
-        if (!currentSound) return;
-        void (async () => {
-          try { await currentSound.stopAsync(); } catch {}
-        })();
-        waterTouchStopTimerRef.current = null;
-      }, 5000);
-    } catch (error) {
-      console.warn('水タッチSEの再生に失敗しました', error);
-    }
+    return;
   }, []);
 
   // ★追加: 複数枚のバックグラウンド事前処理を行う関数
@@ -360,9 +345,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     } finally {
       setIsFinishingSession(false);
       await stopAndUnloadWaterSound();
+      await stopAndUnloadMixdownSound();
+    
       preProcessedUrisRef.current.clear(); // キャッシュクリア
     }
-  }, [refreshPhotoCounts, resolveAspectRatio, stopAndUnloadWaterSound, toDevelopingPhotos]);
+  }, [refreshPhotoCounts, resolveAspectRatio, stopAndUnloadMixdownSound, stopAndUnloadWaterSound, toDevelopingPhotos]);
 
   useEffect(() => {
     let isActive = true;
@@ -459,10 +446,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           globalDarkroomCache[activePhotoId] = { remaining: remainingSeconds, isPaused: true };
       }
       void stopAndUnloadWaterSound();
+      void stopAndUnloadMixdownSound();
       void stopAndUnloadWaterTouchSound();
       selectedDarkroomBgmRef.current = null;
     };
-  }, [stopAndUnloadWaterSound, stopAndUnloadWaterTouchSound]);
+  }, [stopAndUnloadMixdownSound, stopAndUnloadWaterSound, stopAndUnloadWaterTouchSound]);
 
   const handleStartDeveloping = useCallback(() => {
     if (isSessionStarted || isSessionCompleted || !activePhoto) return;
@@ -498,52 +486,113 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
   useEffect(() => {
     let isMounted = true;
-    const syncWaterSound = async () => {
-      if (!shouldPlayWaterSound) {
-        await stopAndUnloadWaterSound();
-        return;
-      }
-      if (waterSoundRef.current) return;
+
+    const startWhiteNoise = async () => {
+      if (whiteNoiseSoundRef.current) return;
+
       try {
-        if (selectedDarkroomBgmRef.current === null) {
-          const candidateIndices = DARKROOM_ENVIRONMENT_BGMS
-            .map((_, index) => index)
-            .filter((index) =>
-              !(DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null && index === lastPlayedDarkroomBgmIndex),
-            );
+        const { sound } = await Audio.Sound.createAsync(
+          DARKROOM_WHITE_NOISE_BGM,
+          { shouldPlay: true, isLooping: true, volume: DARKROOM_WHITE_NOISE_VOLUME },
+        );
 
-          const weightedIndices = candidateIndices.flatMap((index) => {
-            const weight = index === DARKROOM_THUNDER_BGM_INDEX
-              ? DARKROOM_THUNDER_WEIGHT
-              : DARKROOM_NORMAL_WEIGHT;
-            return Array(weight).fill(index);
-          });
+        if (!isMounted) {
+          try { await sound.unloadAsync(); } catch {}
+          return;
+        }
 
-          const randomPool = weightedIndices.length > 0
-            ? weightedIndices
-            : candidateIndices;
-          const randomIndex = randomPool[Math.floor(Math.random() * randomPool.length)];
+        whiteNoiseSoundRef.current = sound;
+      } catch (error) {
+        console.warn('ホワイトノイズの再生に失敗しました', error);
+      }
+    };
 
-          selectedDarkroomBgmRef.current = DARKROOM_ENVIRONMENT_BGMS[randomIndex];
-          lastPlayedDarkroomBgmIndex = randomIndex;
+    void startWhiteNoise();
+
+    return () => {
+      isMounted = false;
+      void stopAndUnloadWhiteNoiseSound();
+    };
+  }, [stopAndUnloadWhiteNoiseSound]);
+
+  useEffect(() => {
+    void stopAndUnloadWaterSound();
+  }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
+
+  useEffect(() => {
+    const getRandomMixdownDelay = () => {
+      return Math.floor(
+        Math.random() * (DARKROOM_MIXDOWN_MAX_INTERVAL_MS - DARKROOM_MIXDOWN_MIN_INTERVAL_MS + 1),
+      ) + DARKROOM_MIXDOWN_MIN_INTERVAL_MS;
+    };
+
+    const playMixdownOnce = async () => {
+      try {
+        const currentSound = mixdownSoundRef.current;
+        if (currentSound) {
+          const status = await currentSound.getStatusAsync();
+          if (status.isLoaded && status.isPlaying) {
+            return;
+          }
+          try { await currentSound.unloadAsync(); } catch {}
+          if (mixdownSoundRef.current === currentSound) {
+            mixdownSoundRef.current = null;
+          }
         }
 
         const { sound } = await Audio.Sound.createAsync(
-          selectedDarkroomBgmRef.current,
-          { shouldPlay: true, isLooping: true, volume: 0.1 },
+          DARKROOM_MIXDOWN_BGM,
+          { shouldPlay: true, isLooping: false, volume: 0.12 },
         );
-        if (!isMounted) {
-          await sound.unloadAsync();
-          return;
-        }
-        waterSoundRef.current = sound;
+
+        mixdownSoundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (!status.isLoaded || !status.didJustFinish) return;
+          void (async () => {
+            if (mixdownSoundRef.current === sound) {
+              mixdownSoundRef.current = null;
+            }
+            try { await sound.unloadAsync(); } catch {}
+          })();
+        });
       } catch (error) {
-        console.warn('水音ASMRの再生に失敗しました', error);
+        console.warn('Mixdownの再生に失敗しました', error);
       }
     };
-    void syncWaterSound();
-    return () => { isMounted = false; };
-  }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
+
+    if (!shouldPlayWaterSound) {
+      void stopAndUnloadMixdownSound();
+      return;
+    }
+
+    const scheduleNextMixdown = () => {
+      if (mixdownTimerRef.current) {
+        clearTimeout(mixdownTimerRef.current);
+      }
+
+      mixdownTimerRef.current = setTimeout(() => {
+        void (async () => {
+          if (!shouldPlayWaterSound) {
+            return;
+          }
+          await playMixdownOnce();
+          scheduleNextMixdown();
+        })();
+      }, getRandomMixdownDelay());
+    };
+
+    void (async () => {
+      await playMixdownOnce();
+      scheduleNextMixdown();
+    })();
+
+    return () => {
+      if (mixdownTimerRef.current) {
+        clearTimeout(mixdownTimerRef.current);
+        mixdownTimerRef.current = null;
+      }
+    };
+  }, [shouldPlayWaterSound, stopAndUnloadMixdownSound]);
 
   useEffect(() => {
     if (remainingSeconds === 0 || isSessionCompleted) {
