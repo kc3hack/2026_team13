@@ -26,6 +26,8 @@ interface DarkroomScreenProps {
 const SESSION_SECONDS = 10;
 const MAX_DEVELOPING_BATCH = 5;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
+const DARKROOM_WHITE_NOISE_BGM = require('../../assets/sounds/bg_white_noise1.mp3');
+const DARKROOM_WHITE_NOISE_VOLUME = 0.04;
 const DARKROOM_MIXDOWN_BGM = require('../../assets/sounds/Mixdown.mp3');
 const DARKROOM_MIXDOWN_MIN_INTERVAL_MS = 5000;
 const DARKROOM_MIXDOWN_MAX_INTERVAL_MS = 10000;
@@ -72,6 +74,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const preProcessedUrisRef = useRef<Map<number, string>>(new Map());
 
   const waterSoundRef = useRef<Audio.Sound | null>(null);
+  const whiteNoiseSoundRef = useRef<Audio.Sound | null>(null);
   const mixdownSoundRef = useRef<Audio.Sound | null>(null);
   const mixdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedDarkroomBgmRef = useRef<number | null>(null);
@@ -198,6 +201,14 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     const currentSound = waterSoundRef.current;
     if (!currentSound) return;
     waterSoundRef.current = null;
+    try { await currentSound.stopAsync(); } catch {}
+    try { await currentSound.unloadAsync(); } catch {}
+  }, []);
+
+  const stopAndUnloadWhiteNoiseSound = useCallback(async () => {
+    const currentSound = whiteNoiseSoundRef.current;
+    if (!currentSound) return;
+    whiteNoiseSoundRef.current = null;
     try { await currentSound.stopAsync(); } catch {}
     try { await currentSound.unloadAsync(); } catch {}
   }, []);
@@ -472,6 +483,37 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   };
 
   const shouldPlayWaterSound = isSessionStarted && remainingSeconds > 0 && !isSessionCompleted && !isPaused;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const startWhiteNoise = async () => {
+      if (whiteNoiseSoundRef.current) return;
+
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          DARKROOM_WHITE_NOISE_BGM,
+          { shouldPlay: true, isLooping: true, volume: DARKROOM_WHITE_NOISE_VOLUME },
+        );
+
+        if (!isMounted) {
+          try { await sound.unloadAsync(); } catch {}
+          return;
+        }
+
+        whiteNoiseSoundRef.current = sound;
+      } catch (error) {
+        console.warn('ホワイトノイズの再生に失敗しました', error);
+      }
+    };
+
+    void startWhiteNoise();
+
+    return () => {
+      isMounted = false;
+      void stopAndUnloadWhiteNoiseSound();
+    };
+  }, [stopAndUnloadWhiteNoiseSound]);
 
   useEffect(() => {
     void stopAndUnloadWaterSound();
