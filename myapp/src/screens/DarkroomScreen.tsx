@@ -8,7 +8,7 @@ import {
 } from '@expo-google-fonts/courier-prime';
 import * as Haptics from 'expo-haptics';
 import { completeDevelopingSession, getDevelopingPhotos, getFilmEffectTypeById, getUndevelopedPhotosOldest, startDevelopingSession, updatePhotoUri, getFilmInventory, countDevelopingPhotos, countPendingPhotos } from '../utils/sqlite';
-import { applyFilmEffectToPhoto } from '../utils/photoEffects';
+import { applyFilmEffectToPhoto, applyUndevelopedPreviewEffect, getUndevelopedPreviewUriByPhotoId } from '../utils/photoEffects';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { getDarkroomUseNativeRipple } from '../utils/storage';
 import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
@@ -47,6 +47,7 @@ interface DevelopingPhoto {
   id: number;
   uri: string;
   filmId: number;
+  previewUri?: string;
 }
 
 interface ResultPhoto {
@@ -111,6 +112,30 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       );
     });
   }, []);
+
+  const resolveUndevelopedPreviewUri = useCallback(async (photoId: number, uri: string): Promise<string> => {
+    const existingPreviewUri = await getUndevelopedPreviewUriByPhotoId(photoId);
+    if (existingPreviewUri) {
+      return existingPreviewUri;
+    }
+
+    return applyUndevelopedPreviewEffect(uri, {
+      outputFileName: `${photoId}_undeveloped.jpg`,
+    });
+  }, []);
+
+  const toDevelopingPhotos = useCallback(async (
+    rows: Array<{ id: number; uri: string; film_id: number }>,
+  ): Promise<DevelopingPhoto[]> => {
+    return Promise.all(
+      rows.map(async (item) => ({
+        id: item.id,
+        uri: item.uri,
+        filmId: item.film_id,
+        previewUri: await resolveUndevelopedPreviewUri(item.id, item.uri),
+      })),
+    );
+  }, [resolveUndevelopedPreviewUri]);
 
   const ensureQueuedPhotosStarted = useCallback(async (queuedIds: number[]): Promise<number[]> => {
     if (queuedIds.length === 0) return [];
@@ -283,13 +308,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       const nextUndeveloped = await getUndevelopedPhotosOldest(MAX_DEVELOPING_BATCH);
 
       if (nextUndeveloped.length > 0) {
-        setDevelopingPhotos(
-          nextUndeveloped.map((item) => ({
-            id: item.id,
-            uri: item.uri,
-            filmId: item.film_id,
-          })),
-        );
+        setDevelopingPhotos(await toDevelopingPhotos(nextUndeveloped));
       } else {
         setDevelopingPhotos([]);
       }
@@ -316,7 +335,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       setIsFinishingSession(false);
       await stopAndUnloadWaterSound();
     }
-  }, [refreshPhotoCounts, resolveAspectRatio, runPhotoEffects, stopAndUnloadWaterSound]);
+  }, [refreshPhotoCounts, resolveAspectRatio, runPhotoEffects, stopAndUnloadWaterSound, toDevelopingPhotos]);
 
   useEffect(() => {
     let isActive = true;
@@ -333,13 +352,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         if (!isActive) return;
 
         if (developing.length > 0) {
-          setDevelopingPhotos(
-            developing.slice(0, MAX_DEVELOPING_BATCH).map((item) => ({
-              id: item.id,
-              uri: item.uri,
-              filmId: item.film_id,
-            })),
-          );
+          setDevelopingPhotos(await toDevelopingPhotos(developing.slice(0, MAX_DEVELOPING_BATCH)));
           setIsSessionStarted(true);
 
           const cached = globalDarkroomCache[developing[0].id];
@@ -357,13 +370,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         if (!isActive) return;
 
         if (undeveloped.length > 0) {
-          setDevelopingPhotos(
-            undeveloped.map((item) => ({
-              id: item.id,
-              uri: item.uri,
-              filmId: item.film_id,
-            })),
-          );
+          setDevelopingPhotos(await toDevelopingPhotos(undeveloped));
         } else {
           setDevelopingPhotos([]);
           setCompletionMessage('現像対象の写真がありません');
@@ -381,7 +388,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     return () => {
       isActive = false;
     };
-  }, [refreshPhotoCounts]);
+  }, [refreshPhotoCounts, toDevelopingPhotos]);
 
   useEffect(() => {
     if (!isSessionStarted || isSessionCompleted || isPaused) return;
@@ -540,11 +547,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           return;
         }
 
-        const nextPhotos = undeveloped.map((item) => ({
-          id: item.id,
-          uri: item.uri,
-          filmId: item.film_id,
-        }));
+        const nextPhotos = await toDevelopingPhotos(undeveloped);
 
         setDevelopingPhotos(nextPhotos);
         setIsSessionCompleted(false);
@@ -569,7 +572,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
         setIsPreparing(false);
       }
     })();
-  }, [ensureQueuedPhotosStarted, isFinishingSession, refreshPhotoCounts]);
+  }, [ensureQueuedPhotosStarted, isFinishingSession, refreshPhotoCounts, toDevelopingPhotos]);
 
   const displayTime = useMemo(() => {
     const hours = Math.floor(remainingSeconds / 3600);
@@ -734,7 +737,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
                   renderItem={({ item, index }) => (
                     <View style={{ width: rightPanelDim.width, height: rightPanelDim.height }}>
                       <DarkroomSkiaView
-                        photoUri={item.uri}
+                        photoUri={item.previewUri ?? item.uri}
                         width={rightPanelDim.width}
                         height={rightPanelDim.height}
                         useNativeRipple={useNativeRipple}
