@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
   Image,
   Alert,
   Platform,
@@ -69,6 +70,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoItemForAlbum | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
+  const [isProcessingUndeveloped, setIsProcessingUndeveloped] = useState(false);
   
   const [filmInventory, setFilmInventory] = useState<FilmInventory>({ 
     mono: 0, 
@@ -195,19 +197,28 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   }, []);
 
   const load = useCallback(async (status: PhotoTab) => {
-    const list = await getPhotosByStatus(status);
-    
-    // ★修正: 未現像の場合はプレビューURIを解決してセットする
     if (status === 'undeveloped') {
-      const listWithPreviews = await Promise.all(
-        list.map(async (item) => {
-          const previewUri = await resolveUndevelopedPreviewUri(item.id, item.uri);
-          return { ...item, previewUri };
-        })
-      );
-      setPhotos(listWithPreviews);
-    } else {
-      setPhotos(list);
+      setIsProcessingUndeveloped(true);
+    }
+
+    try {
+      const list = await getPhotosByStatus(status);
+
+      if (status === 'undeveloped') {
+        const listWithPreviews = await Promise.all(
+          list.map(async (item) => {
+            const previewUri = await resolveUndevelopedPreviewUri(item.id, item.uri);
+            return { ...item, previewUri };
+          })
+        );
+        setPhotos(listWithPreviews);
+      } else {
+        setPhotos(list);
+      }
+    } finally {
+      if (status === 'undeveloped') {
+        setIsProcessingUndeveloped(false);
+      }
     }
   }, [resolveUndevelopedPreviewUri]);
 
@@ -717,6 +728,13 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
               );
             })}
           </View>
+
+          {selectedTab === 'undeveloped' && isProcessingUndeveloped && (
+            <View style={styles.processingOverlay}>
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.processingOverlayText}>未現像写真を加工中...</Text>
+            </View>
+          )}
         </View>
       </View>
 
