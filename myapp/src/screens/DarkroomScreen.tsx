@@ -27,7 +27,8 @@ const SESSION_SECONDS = 10;
 const MAX_DEVELOPING_BATCH = 5;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
 const DARKROOM_MIXDOWN_BGM = require('../../assets/sounds/Mixdown.mp3');
-const DARKROOM_MIXDOWN_INTERVAL_MS = 30000;
+const DARKROOM_MIXDOWN_MIN_INTERVAL_MS = 5000;
+const DARKROOM_MIXDOWN_MAX_INTERVAL_MS = 10000;
 
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
@@ -69,7 +70,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
   const waterSoundRef = useRef<Audio.Sound | null>(null);
   const mixdownSoundRef = useRef<Audio.Sound | null>(null);
-  const mixdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mixdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedDarkroomBgmRef = useRef<number | null>(null);
   const waterTouchSoundRef = useRef<Audio.Sound | null>(null);
   const waterTouchStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,7 +201,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
 
   const stopAndUnloadMixdownSound = useCallback(async () => {
     if (mixdownTimerRef.current) {
-      clearInterval(mixdownTimerRef.current);
+      clearTimeout(mixdownTimerRef.current);
       mixdownTimerRef.current = null;
     }
     const currentSound = mixdownSoundRef.current;
@@ -449,6 +450,12 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
 
   useEffect(() => {
+    const getRandomMixdownDelay = () => {
+      return Math.floor(
+        Math.random() * (DARKROOM_MIXDOWN_MAX_INTERVAL_MS - DARKROOM_MIXDOWN_MIN_INTERVAL_MS + 1),
+      ) + DARKROOM_MIXDOWN_MIN_INTERVAL_MS;
+    };
+
     const playMixdownOnce = async () => {
       try {
         const currentSound = mixdownSoundRef.current;
@@ -488,18 +495,27 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       return;
     }
 
-    void playMixdownOnce();
+    const scheduleNextMixdown = () => {
+      if (mixdownTimerRef.current) {
+        clearTimeout(mixdownTimerRef.current);
+      }
 
-    if (mixdownTimerRef.current) {
-      clearInterval(mixdownTimerRef.current);
-    }
-    mixdownTimerRef.current = setInterval(() => {
-      void playMixdownOnce();
-    }, DARKROOM_MIXDOWN_INTERVAL_MS);
+      mixdownTimerRef.current = setTimeout(() => {
+        void (async () => {
+          if (!shouldPlayWaterSound) {
+            return;
+          }
+          await playMixdownOnce();
+          scheduleNextMixdown();
+        })();
+      }, getRandomMixdownDelay());
+    };
+
+    scheduleNextMixdown();
 
     return () => {
       if (mixdownTimerRef.current) {
-        clearInterval(mixdownTimerRef.current);
+        clearTimeout(mixdownTimerRef.current);
         mixdownTimerRef.current = null;
       }
     };
