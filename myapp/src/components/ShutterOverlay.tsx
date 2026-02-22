@@ -19,6 +19,8 @@ interface ShutterOverlayProps {
   clickCloseDuration?: number;
   /** Duration of the shutter-click open phase in ms (default 300) */
   clickOpenDuration?: number;
+  /** Called when the shutter has fully closed */
+  onClosed?: () => void;
 }
 
 /**
@@ -37,6 +39,7 @@ export const ShutterOverlay: React.FC<ShutterOverlayProps> = ({
   shutterTrigger = 0,
   clickCloseDuration = 100,
   clickOpenDuration = 100,
+  onClosed,
 }) => {
   const cx = width / 2;
   const cy = height / 2;
@@ -92,7 +95,9 @@ export const ShutterOverlay: React.FC<ShutterOverlayProps> = ({
         toValue: 0,
         duration,
         useNativeDriver: false,
-      }).start();
+      }).start(() => {
+        onClosed?.();
+      });
     }
   }, [isOpen]);
 
@@ -127,7 +132,9 @@ export const ShutterOverlay: React.FC<ShutterOverlayProps> = ({
           toValue: 0,
           duration,
           useNativeDriver: false,
-        }).start();
+        }).start(() => {
+          onClosed?.();
+        });
       } else {
         setVisible(false);
       }
