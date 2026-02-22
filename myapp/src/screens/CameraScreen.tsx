@@ -62,6 +62,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
 
   const activeFilmId = selectedFilm ? FILM_ID_MAP[selectedFilm] : null;
   const canShoot = !!selectedFilm && filmInventory[selectedFilm] > 0;
+  const [noFilmVisible, setNoFilmVisible] = useState(!canShoot);
+
+  // canShoot が true になったら即座に NO FILM を非表示にする
+  useEffect(() => {
+    if (canShoot) {
+      setNoFilmVisible(false);
+    }
+  }, [canShoot]);
 
   const topBarLeft = width * (Platform.OS === 'android' ? 0.29 : 0.42) + androidInset;
   const previewHeight = Math.round(Math.max(140, Math.min(260, Math.round(height * 0.38))) * androidPreviewScale);
@@ -281,18 +289,29 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ filmType, filmId, on
               flash={flash}
               ref={cameraRef}
             />
-            {canShoot ? (
+            {!noFilmVisible && (
               <>
                 <View style={styles.crosshairVertical} />
                 <View style={styles.crosshairHorizontal} />
                 <View style={styles.recDot} />
               </>
-            ) : (
+            )}
+            {noFilmVisible && (
               <View style={styles.cameraOff}>
                 <Text style={[styles.cameraOffText, boldFont]}>NO FILM</Text>
               </View>
             )}
-            <ShutterOverlay width={previewWidth} height={previewHeight} isOpen={canShoot} shutterTrigger={shutterTrigger} />
+            <ShutterOverlay
+              width={previewWidth}
+              height={previewHeight}
+              isOpen={canShoot}
+              shutterTrigger={shutterTrigger}
+              onClosed={() => {
+                if (!canShoot) {
+                  setNoFilmVisible(true);
+                }
+              }}
+            />
           </View>
 
           <View style={[styles.grip, { width: gripWidth, height: gripHeight }]}>
