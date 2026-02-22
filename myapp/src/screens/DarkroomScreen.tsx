@@ -26,7 +26,6 @@ interface DarkroomScreenProps {
 const SESSION_SECONDS = 10;
 const MAX_DEVELOPING_BATCH = 5;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
-const DARKROOM_ASMR_BGM = require('../../assets/sounds/water_asmr.mp3');
 const DARKROOM_MIXDOWN_BGM = require('../../assets/sounds/Mixdown.mp3');
 const DARKROOM_MIXDOWN_INTERVAL_MS = 30000;
 
@@ -224,36 +223,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   }, []);
 
   const playWaterTouchSound = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastWaterTouchAtRef.current < 100) return;
-    lastWaterTouchAtRef.current = now;
-
-    try {
-      if (!waterTouchSoundRef.current) {
-        const { sound } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/VSQSE_0604_water_splash_01.mp3'),
-          { shouldPlay: false, isLooping: false, volume: 0.2 },
-        );
-        waterTouchSoundRef.current = sound;
-      }
-      if (waterTouchStopTimerRef.current) {
-        clearTimeout(waterTouchStopTimerRef.current);
-        waterTouchStopTimerRef.current = null;
-      }
-      await waterTouchSoundRef.current.setPositionAsync(0);
-      await waterTouchSoundRef.current.playAsync();
-
-      waterTouchStopTimerRef.current = setTimeout(() => {
-        const currentSound = waterTouchSoundRef.current;
-        if (!currentSound) return;
-        void (async () => {
-          try { await currentSound.stopAsync(); } catch {}
-        })();
-        waterTouchStopTimerRef.current = null;
-      }, 5000);
-    } catch (error) {
-      console.warn('水タッチSEの再生に失敗しました', error);
-    }
+    return;
   }, []);
 
   const runPhotoEffects = useCallback(async (rows: DevelopingPhoto[]) => {
@@ -475,33 +445,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const shouldPlayWaterSound = isSessionStarted && remainingSeconds > 0 && !isSessionCompleted && !isPaused;
 
   useEffect(() => {
-    let isMounted = true;
-    const syncWaterSound = async () => {
-      if (!shouldPlayWaterSound) {
-        await stopAndUnloadWaterSound();
-        return;
-      }
-      if (waterSoundRef.current) return;
-      try {
-        if (selectedDarkroomBgmRef.current === null) {
-          selectedDarkroomBgmRef.current = DARKROOM_ASMR_BGM;
-        }
-
-        const { sound } = await Audio.Sound.createAsync(
-          selectedDarkroomBgmRef.current,
-          { shouldPlay: true, isLooping: true, volume: 0.1 },
-        );
-        if (!isMounted) {
-          await sound.unloadAsync();
-          return;
-        }
-        waterSoundRef.current = sound;
-      } catch (error) {
-        console.warn('水音ASMRの再生に失敗しました', error);
-      }
-    };
-    void syncWaterSound();
-    return () => { isMounted = false; };
+    void stopAndUnloadWaterSound();
   }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
 
   useEffect(() => {
