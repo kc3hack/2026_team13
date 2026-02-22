@@ -16,11 +16,13 @@ import {
   LayoutChangeEvent,
   useWindowDimensions,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
+// ★修正: BlurViewはもう使わないため削除しても構いませんが、念のためimportは消しておきます
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { deletePhoto, getPhotosByStatus, PhotoWithFilmName, getFilmInventory } from '../utils/sqlite';
+// ★追加: プレビュー画像を取得・生成するための関数をインポート
+import { applyUndevelopedPreviewEffect, getUndevelopedPreviewUriByPhotoId } from '../utils/photoEffects';
 import { useGithubCommits } from '../hooks/useGithubCommits';
 import { FilmInventory, FILM_META, FILM_TYPES } from '../types';
 import { styles } from '../styles/AlbumScreen.styles';
@@ -36,6 +38,9 @@ interface AlbumScreenProps {
 
 type PhotoTab = 'developed' | 'undeveloped';
 
+// ★追加: Album表示用にプレビューURIを持たせた型を定義
+type PhotoItemForAlbum = PhotoWithFilmName & { previewUri?: string };
+
 export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, onGoSettings, onGoDarkroom }) => {
   const GRID_COLUMNS = 3;
   const GRID_SIDE_PADDING = 12;
@@ -44,10 +49,11 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const DETAIL_ZOOM_MAX = 3;
 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const [photos, setPhotos] = useState<PhotoWithFilmName[]>([]);
+  
+  // ★修正: Stateの型を PhotoItemForAlbum に変更
+  const [photos, setPhotos] = useState<PhotoItemForAlbum[]>([]);
   const [selectedTab, setSelectedTab] = useState<PhotoTab>('developed');
-  // ★削除: sortOrder の State を削除
-  const [selectedPhoto, setSelectedPhoto] = useState<PhotoWithFilmName | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoItemForAlbum | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [detailZoomScale, setDetailZoomScale] = useState(1);
   const [detailTranslateX, setDetailTranslateX] = useState(0);
@@ -60,7 +66,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
   const detailPinchRef = useRef<{ initialDistance: number; startScale: number } | null>(null);
   const detailPanRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const detailViewportRef = useRef({ width: screenWidth, height: Math.round(screenWidth * 1.2) });
-  const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoWithFilmName | null>(null);
+  const [menuTargetPhoto, setMenuTargetPhoto] = useState<PhotoItemForAlbum | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
   
@@ -138,9 +144,8 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     return Math.min(sizeByWidth, maxByHeight);
   }, [rightPanelWidth, screenHeight]);
 
-  // ★修正: 常に「新しい順（降順）」になるようにソート処理を簡略化
   const sortedPhotos = useMemo(() => {
-    const getPhotoTime = (photo: PhotoWithFilmName): number => {
+    const getPhotoTime = (photo: PhotoItemForAlbum): number => {
       const createdAt = photo.created_at ? new Date(photo.created_at).getTime() : Number.NaN;
       if (!Number.isNaN(createdAt)) {
         return createdAt;
@@ -151,7 +156,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     return [...photos].sort((a, b) => {
       const left = getPhotoTime(a);
       const right = getPhotoTime(b);
-      return right - left; // 常に新しい順
+      return right - left; 
     });
   }, [photos]);
 
@@ -159,10 +164,6 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     () => sortedPhotos.filter((photo) => selectedPhotoIds.includes(photo.id)),
     [sortedPhotos, selectedPhotoIds],
   );
-  const shouldShowSelectionActions = isSelectionMode && selectedPhotoIds.length > 0;
-  const selectionModeButtonLabel = Platform.OS === 'android'
-    ? (isSelectionMode ? '選択解除' : '選択モード')
-    : (isSelectionMode ? '選択モード解除' : '選択モードにする');
 
   const ITEMS_PER_PAGE = 6;
   const totalPages = useMemo(() => {
@@ -181,10 +182,34 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1));
   }, [totalPages]);
 
+  // ★追加: プレビューURIを解決する関数
+  const resolveUndevelopedPreviewUri = useCallback(async (photoId: number, uri: string): Promise<string> => {
+    const existingPreviewUri = await getUndevelopedPreviewUriByPhotoId(photoId);
+    if (existingPreviewUri) {
+      return existingPreviewUri;
+    }
+    // もしキャッシュが無ければ生成する
+    return applyUndevelopedPreviewEffect(uri, {
+      outputFileName: `${photoId}_undeveloped.jpg`,
+    });
+  }, []);
+
   const load = useCallback(async (status: PhotoTab) => {
     const list = await getPhotosByStatus(status);
-    setPhotos(list);
-  }, []);
+    
+    // ★修正: 未現像の場合はプレビューURIを解決してセットする
+    if (status === 'undeveloped') {
+      const listWithPreviews = await Promise.all(
+        list.map(async (item) => {
+          const previewUri = await resolveUndevelopedPreviewUri(item.id, item.uri);
+          return { ...item, previewUri };
+        })
+      );
+      setPhotos(listWithPreviews);
+    } else {
+      setPhotos(list);
+    }
+  }, [resolveUndevelopedPreviewUri]);
 
   useEffect(() => {
     void load(selectedTab);
@@ -309,7 +334,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     setDetailTranslateY(adjusted.y);
   }, [clampTranslation]);
 
-  const openActionMenu = useCallback((photo: PhotoWithFilmName) => {
+  const openActionMenu = useCallback((photo: PhotoItemForAlbum) => {
     setMenuTargetPhoto(photo);
   }, []);
 
@@ -371,7 +396,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
 
   const useFallbackModal = true;
 
-  const handleDelete = (photo: PhotoWithFilmName) => {
+  const handleDelete = (photo: PhotoItemForAlbum) => {
     Alert.alert('削除', 'この写真を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
       {
@@ -432,7 +457,7 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
     }
   }, [resolveSavableUri]);
 
-  const handleSaveToDevice = async (photo: PhotoWithFilmName) => {
+  const handleSaveToDevice = async (photo: PhotoItemForAlbum) => {
     const permission = await MediaLibrary.requestPermissionsAsync(true);
     if (!permission.granted) {
       Alert.alert('保存できません', '写真ライブラリへのアクセス権限が必要です');
@@ -583,62 +608,19 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                 </TouchableOpacity>
               </View>
 
-              {/* ★削除: [ SORT ] ブロックを丸ごと削除しました */}
+              <Text style={styles.label}>[ MODE ]</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  onPress={toggleSelectionMode}
+                  style={[styles.dashboardBtn, isSelectionMode && styles.dashboardBtnActive]}
+                >
+                  <Text style={[styles.btnText, isSelectionMode && styles.btnTextActive]}>
+                    {isSelectionMode ? '選択モード解除' : '選択モードにする'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-              {Platform.OS === 'android' ? (
-                <>
-                  <View style={styles.modeActionHeaderRowAndroid}>
-                    <Text style={styles.label}>[ MODE ]</Text>
-                    {shouldShowSelectionActions && (
-                      <Text style={styles.modeActionHeaderLabelAndroid}>[ ACTION ] {selectedPhotoIds.length}枚</Text>
-                    )}
-                  </View>
-
-                  <View style={styles.modeActionControlsRowAndroid}>
-                    <TouchableOpacity
-                      onPress={toggleSelectionMode}
-                      style={[styles.dashboardBtn, isSelectionMode && styles.dashboardBtnActive]}
-                    >
-                      <Text style={[styles.btnText, isSelectionMode && styles.btnTextActive]}>
-                        {selectionModeButtonLabel}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {shouldShowSelectionActions && (
-                      <View style={[styles.buttonRow, styles.modeActionButtonsRowAndroid]}>
-                        <TouchableOpacity
-                          onPress={() => void handleSaveSelectedPhotos()}
-                          style={styles.dashboardBtn}
-                        >
-                          <Text style={styles.btnText}>保存</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={handleDeleteSelectedPhotos}
-                          style={[styles.dashboardBtn, styles.dangerBtn]}
-                        >
-                          <Text style={styles.dangerBtnText}>削除</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.label}>[ MODE ]</Text>
-                  <View style={styles.buttonRow}>
-                    <TouchableOpacity
-                      onPress={toggleSelectionMode}
-                      style={[styles.dashboardBtn, isSelectionMode && styles.dashboardBtnActive]}
-                    >
-                      <Text style={[styles.btnText, isSelectionMode && styles.btnTextActive]}>
-                        {selectionModeButtonLabel}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-
-              {Platform.OS !== 'android' && shouldShowSelectionActions && (
+              {isSelectionMode && selectedPhotoIds.length > 0 && (
                 <>
                   <Text style={styles.label}>[ ACTION ] {selectedPhotoIds.length}枚選択中</Text>
                   <View style={styles.buttonRow}>
@@ -713,19 +695,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
                       }}
                     >
                       <View style={styles.photoWrap}>
+                        {/* ★修正: previewUri があればそちらを表示し、BlurViewを使わない */}
                         <Image
-                          source={{ uri: item.uri }}
+                          source={{ uri: item.previewUri ?? item.uri }}
                           style={styles.gridImage}
                           resizeMode="cover"
-                          blurRadius={selectedTab === 'undeveloped' ? 14 : 0}
                         />
-                        {selectedTab === 'undeveloped' && (
-                          <BlurView
-                            intensity={Platform.OS === 'ios' ? 22 : 0}
-                            tint="default"
-                            style={styles.photoBlurOverlay}
-                          />
-                        )}
                         {isSelectionMode && (
                           <View style={[styles.selectionBadge, selectedPhotoIds.includes(item.id) && styles.selectionBadgeActive]}>
                             <Text style={styles.selectionBadgeText}>{selectedPhotoIds.includes(item.id) ? '✓' : ''}</Text>
@@ -763,19 +738,12 @@ export const AlbumScreen: React.FC<AlbumScreenProps> = ({ onBack, onGoCamera, on
             onTouchCancel={handleDetailTouchEnd}
             onLongPress={() => openActionMenu(selectedPhoto)}
           >
+            {/* ★修正: モーダルでも previewUri があればそちらを表示し、BlurViewを使わない */}
             <Image
-              source={{ uri: selectedPhoto.uri }}
+              source={{ uri: selectedPhoto.previewUri ?? selectedPhoto.uri }}
               style={[styles.detailImage, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
               resizeMode="contain"
-              blurRadius={selectedPhoto.status === 'undeveloped' ? 22 : 0}
             />
-            {selectedPhoto.status === 'undeveloped' && (
-              <BlurView
-                intensity={Platform.OS === 'ios' ? 22 : 0}
-                tint="default"
-                style={[styles.detailBlurOverlay, { transform: [{ translateX: detailTranslateX }, { translateY: detailTranslateY }, { scale: detailZoomScale }] }]}
-              />
-            )}
           </Pressable>
           {selectedPhotoIndex > 0 && (
             <TouchableOpacity
