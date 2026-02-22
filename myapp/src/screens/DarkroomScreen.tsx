@@ -26,20 +26,9 @@ interface DarkroomScreenProps {
 const SESSION_SECONDS = 10;
 const MAX_DEVELOPING_BATCH = 5;
 const globalDarkroomCache: Record<number, { remaining: number; isPaused: boolean }> = {};
-let lastPlayedDarkroomBgmIndex: number | null = null;
-const DARKROOM_ENVIRONMENT_BGMS: number[] = [
-  require('../../assets/sounds/environment/VSQSE_0701_morning_01.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0713_rice_field_04.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0744_rain_06_bird.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0855_turtledove.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0967_singing_of_insect_08.mp3'),
-  require('../../assets/sounds/environment/VSQSE_0988_thunder_02.mp3'),
-  require('../../assets/sounds/environment/VSQSE_1010_room_ambient_05.mp3'),
-  require('../../assets/sounds/environment/VSQSE_1042_old_growth_forest_02.mp3'),
-];
-const DARKROOM_THUNDER_BGM_INDEX = 5;
-const DARKROOM_THUNDER_WEIGHT = 1;
-const DARKROOM_NORMAL_WEIGHT = 3;
+const DARKROOM_ASMR_BGM = require('../../assets/sounds/water_asmr.mp3');
+const DARKROOM_MIXDOWN_BGM = require('../../assets/sounds/Mixdown.mp3');
+const DARKROOM_MIXDOWN_INTERVAL_MS = 30000;
 
 const DISPLAY_FILMS = FILM_TYPES.filter(type => ['mono', 'vivid', 'retro'].includes(type));
 
@@ -80,6 +69,8 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
   const [totalPendingCount, setTotalPendingCount] = useState(0);
 
   const waterSoundRef = useRef<Audio.Sound | null>(null);
+  const mixdownSoundRef = useRef<Audio.Sound | null>(null);
+  const mixdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedDarkroomBgmRef = useRef<number | null>(null);
   const waterTouchSoundRef = useRef<Audio.Sound | null>(null);
   const waterTouchStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -204,6 +195,18 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     const currentSound = waterSoundRef.current;
     if (!currentSound) return;
     waterSoundRef.current = null;
+    try { await currentSound.stopAsync(); } catch {}
+    try { await currentSound.unloadAsync(); } catch {}
+  }, []);
+
+  const stopAndUnloadMixdownSound = useCallback(async () => {
+    if (mixdownTimerRef.current) {
+      clearInterval(mixdownTimerRef.current);
+      mixdownTimerRef.current = null;
+    }
+    const currentSound = mixdownSoundRef.current;
+    if (!currentSound) return;
+    mixdownSoundRef.current = null;
     try { await currentSound.stopAsync(); } catch {}
     try { await currentSound.unloadAsync(); } catch {}
   }, []);
@@ -342,8 +345,9 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     } finally {
       setIsFinishingSession(false);
       await stopAndUnloadWaterSound();
+      await stopAndUnloadMixdownSound();
     }
-  }, [refreshPhotoCounts, resolveAspectRatio, runPhotoEffects, stopAndUnloadWaterSound, toDevelopingPhotos]);
+  }, [refreshPhotoCounts, resolveAspectRatio, runPhotoEffects, stopAndUnloadMixdownSound, stopAndUnloadWaterSound, toDevelopingPhotos]);
 
   useEffect(() => {
     let isActive = true;
@@ -436,10 +440,11 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
           globalDarkroomCache[activePhotoId] = { remaining: remainingSeconds, isPaused: true };
       }
       void stopAndUnloadWaterSound();
+      void stopAndUnloadMixdownSound();
       void stopAndUnloadWaterTouchSound();
       selectedDarkroomBgmRef.current = null;
     };
-  }, [stopAndUnloadWaterSound, stopAndUnloadWaterTouchSound]);
+  }, [stopAndUnloadMixdownSound, stopAndUnloadWaterSound, stopAndUnloadWaterTouchSound]);
 
   const handleStartDeveloping = useCallback(() => {
     if (isSessionStarted || isSessionCompleted || !activePhoto) return;
@@ -479,26 +484,7 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       if (waterSoundRef.current) return;
       try {
         if (selectedDarkroomBgmRef.current === null) {
-          const candidateIndices = DARKROOM_ENVIRONMENT_BGMS
-            .map((_, index) => index)
-            .filter((index) =>
-              !(DARKROOM_ENVIRONMENT_BGMS.length > 1 && lastPlayedDarkroomBgmIndex !== null && index === lastPlayedDarkroomBgmIndex),
-            );
-
-          const weightedIndices = candidateIndices.flatMap((index) => {
-            const weight = index === DARKROOM_THUNDER_BGM_INDEX
-              ? DARKROOM_THUNDER_WEIGHT
-              : DARKROOM_NORMAL_WEIGHT;
-            return Array(weight).fill(index);
-          });
-
-          const randomPool = weightedIndices.length > 0
-            ? weightedIndices
-            : candidateIndices;
-          const randomIndex = randomPool[Math.floor(Math.random() * randomPool.length)];
-
-          selectedDarkroomBgmRef.current = DARKROOM_ENVIRONMENT_BGMS[randomIndex];
-          lastPlayedDarkroomBgmIndex = randomIndex;
+          selectedDarkroomBgmRef.current = DARKROOM_ASMR_BGM;
         }
 
         const { sound } = await Audio.Sound.createAsync(
@@ -517,6 +503,63 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
     void syncWaterSound();
     return () => { isMounted = false; };
   }, [shouldPlayWaterSound, stopAndUnloadWaterSound]);
+
+  useEffect(() => {
+    const playMixdownOnce = async () => {
+      try {
+        const currentSound = mixdownSoundRef.current;
+        if (currentSound) {
+          const status = await currentSound.getStatusAsync();
+          if (status.isLoaded && status.isPlaying) {
+            return;
+          }
+          try { await currentSound.unloadAsync(); } catch {}
+          if (mixdownSoundRef.current === currentSound) {
+            mixdownSoundRef.current = null;
+          }
+        }
+
+        const { sound } = await Audio.Sound.createAsync(
+          DARKROOM_MIXDOWN_BGM,
+          { shouldPlay: true, isLooping: false, volume: 0.12 },
+        );
+
+        mixdownSoundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (!status.isLoaded || !status.didJustFinish) return;
+          void (async () => {
+            if (mixdownSoundRef.current === sound) {
+              mixdownSoundRef.current = null;
+            }
+            try { await sound.unloadAsync(); } catch {}
+          })();
+        });
+      } catch (error) {
+        console.warn('Mixdownの再生に失敗しました', error);
+      }
+    };
+
+    if (!shouldPlayWaterSound) {
+      void stopAndUnloadMixdownSound();
+      return;
+    }
+
+    void playMixdownOnce();
+
+    if (mixdownTimerRef.current) {
+      clearInterval(mixdownTimerRef.current);
+    }
+    mixdownTimerRef.current = setInterval(() => {
+      void playMixdownOnce();
+    }, DARKROOM_MIXDOWN_INTERVAL_MS);
+
+    return () => {
+      if (mixdownTimerRef.current) {
+        clearInterval(mixdownTimerRef.current);
+        mixdownTimerRef.current = null;
+      }
+    };
+  }, [shouldPlayWaterSound, stopAndUnloadMixdownSound]);
 
   useEffect(() => {
     if (remainingSeconds === 0 || isSessionCompleted) {
