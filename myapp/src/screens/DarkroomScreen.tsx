@@ -511,7 +511,10 @@ export const DarkroomScreen: React.FC<DarkroomScreenProps> = ({ onBack, onGoSett
       }, getRandomMixdownDelay());
     };
 
-    scheduleNextMixdown();
+    void (async () => {
+      await playMixdownOnce();
+      scheduleNextMixdown();
+    })();
 
     return () => {
       if (mixdownTimerRef.current) {
