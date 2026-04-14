@@ -1,7 +1,7 @@
 # Devit
 <!-- プロダクト名に変更してください -->
 
-![Devit](https://kc3.me/cms/wp-content/uploads/2026/02/444e7120d5cdd74aa75f7a94bf8821a5-scaled.png)
+<img width="1920" height="1080" alt="Devit_main" src="https://github.com/user-attachments/assets/e9a6edfd-13fd-4466-b9c7-b3ae670ca2b4" />
 <!-- プロダクト名・イメージ画像を差し変えてください -->
 
 
